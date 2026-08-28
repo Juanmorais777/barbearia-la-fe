@@ -145,7 +145,6 @@ export async function createSale(
 ): Promise<number> {
   return executor.insert("product_sales", {
     product_id: data.product_id,
-    barber_id: data.barber_id,
     customer_id: data.customer_id,
     quantity: data.quantity,
     unit_price: data.unit_price,
@@ -153,6 +152,8 @@ export async function createSale(
     payment_method: data.payment_method,
   });
 }
+
+
 
 export function saleDateLabel(value: unknown): string | null {
   return toDate(value);
