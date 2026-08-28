@@ -509,24 +509,27 @@ export async function updateBlockedTime(
    CONFIGURAÇÕES
    ========================================================= */
 
-export async function getSettings(): Promise<
-  Setting[]
-> {
-  const rows =
-    await db.query<{
-      setting_key: string;
-      setting_value:
-        | string
-        | null;
-    }>(
-      `SELECT
-          [setting_key],
-          [setting_value]
-         FROM ${ident(
-           "settings",
-         )}
-        ORDER BY [setting_key]`,
-    );
+
+export async function getSettings(): Promise<Setting[]> {
+  const rows = await db.query<{
+    setting_key: string;
+    setting_value: string | null;
+  }>(
+    `SELECT
+        setting_key,
+        setting_value
+       FROM ${ident("settings")}
+      ORDER BY setting_key`,
+  );
+
+  return rows.map((row) => ({
+    key: String(row.setting_key),
+    value:
+      row.setting_value === null
+        ? null
+        : String(row.setting_value),
+  }));
+}
 
   return rows.map(
     (row) => ({
