@@ -1,0 +1,17 @@
+.env
+.env.*
+!/.env.example
+
+node_modules/
+.next/
+out/
+build/
+
+*.log
+logs/
+npm-debug.log*
+
+.DS_Store
+*.pem
+.vercel
+next-env.d.ts
