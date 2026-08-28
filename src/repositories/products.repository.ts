@@ -105,8 +105,10 @@ function mapSale(row: Record<string, unknown>): ProductSale {
     barber_id: row.barber_id ? Number(row.barber_id) : null,
     quantity: num(row.quantity),
     unit_price: num(row.unit_price),
-    total: num(row.total),
-    payment_method: String(row.payment_method || "DINHEIRO") as ProductSale["payment_method"],
+    total: num(row.total_price),
+    payment_method: String(
+      row.payment_method || "DINHEIRO",
+    ) as ProductSale["payment_method"],
     created_at: toDateTime(row.created_at),
   };
 }
@@ -131,7 +133,15 @@ export async function listSales(filters: { from?: string | null; to?: string | n
 
 export async function createSale(
   executor: DbExecutor,
-  data: { product_id: number; barber_id: number | null; customer_id: number | null; quantity: number; unit_price: number; total: number; payment_method: string },
+  data: {
+    product_id: number;
+    barber_id: number | null;
+    customer_id: number | null;
+    quantity: number;
+    unit_price: number;
+    total: number;
+    payment_method: string;
+  },
 ): Promise<number> {
   return executor.insert("product_sales", {
     product_id: data.product_id,
@@ -139,7 +149,7 @@ export async function createSale(
     customer_id: data.customer_id,
     quantity: data.quantity,
     unit_price: data.unit_price,
-    total: data.total,
+    total_price: data.total,
     payment_method: data.payment_method,
   });
 }
