@@ -1,127 +1,213 @@
-#!/usr/bin/env node
+
 /**
- * npm run db:seed
- * 1) Executa os scripts de estrutura/seed do banco configurado.
- * 2) Cria o administrador inicial com hash bcrypt (ADMIN_EMAIL / ADMIN_PASSWORD).
+ * BARBEARIA LA FÉ
+ *
+ * Seed oficial para Neon PostgreSQL.
+ *
+ * Executa:
+ * 1. database/postgres/01-schema.sql
+ * 2. database/postgres/02-seed.sql
+ * 3. cria/atualiza o administrador inicial
+ *
  * Idempotente: pode ser executado várias vezes.
  */
+
 import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
-const dialect = (process.env.DB_CLIENT || (process.env.DATABASE_URL ? "postgres" : "mssql")).toLowerCase();
 const root = process.cwd();
+
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  console.error("❌ DATABASE_URL não está definida.");
+  process.exit(1);
+}
+
+/* =========================================================
+   LER ARQUIVO SQL
+   ========================================================= */
 
 function readSql(file) {
   const full = path.join(root, file);
-  if (!existsSync(full)) return null;
+
+  if (!existsSync(full)) {
+    throw new Error(`Arquivo não encontrado: ${file}`);
+  }
+
   return readFileSync(full, "utf8");
 }
 
-function splitTsql(sql) {
-  return sql
-    .split(/^\s*GO\s*$/gim)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean);
-}
+/* =========================================================
+   DIVIDIR SQL POSTGRES
+   ========================================================= */
 
 function splitPg(sql) {
   return sql
-    .split(/;\s*\n/)
+    .split(/;\s*(?:\r?\n|$)/)
     .map((chunk) => chunk.trim())
     .filter(Boolean)
-    .map((chunk) => (chunk.endsWith(";") ? chunk : `${chunk};`));
+    .map((chunk) => `${chunk};`);
 }
 
-async function withClient(run) {
-  if (dialect === "mssql") {
-    const mssql = await import("mssql");
-    const pool = new mssql.ConnectionPool({
-      server: process.env.DB_SERVER || "localhost",
-      port: Number(process.env.DB_PORT || 1433),
-      database: process.env.DB_DATABASE || "la fe",
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      options: {
-        encrypt: String(process.env.DB_ENCRYPT || "false") === "true",
-        trustServerCertificate: String(process.env.DB_TRUST_SERVER_CERTIFICATE || "true") === "true",
-      },
-    });
-    await pool.connect();
-    try {
-      return await run(async (statement) => {
-        await pool.request().query(statement);
-      });
-    } finally {
-      await pool.close();
-    }
-  }
+/* =========================================================
+   CONECTAR NEON
+   ========================================================= */
 
+async function withClient(run) {
   const { Client } = await import("pg");
+
   const client = new Client({
-    connectionString:
-      process.env.DATABASE_URL ||
-      `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_SERVER}:${process.env.DB_PORT}/${process.env.DB_DATABASE}`,
+    connectionString: DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false,
+    },
   });
+
   await client.connect();
+
   try {
-    return await run(async (statement) => {
-      await client.query(statement);
-    });
+    return await run(client);
   } finally {
     await client.end();
   }
 }
 
-const files =
-  dialect === "mssql"
-    ? ["database/02-create-tables.sql", "database/03-seed-data.sql", "database/04-indexes.sql"]
-    : ["database/postgres/01-schema.sql", "database/postgres/02-seed.sql"];
+/* =========================================================
+   EXECUTAR SCHEMA + SEED
+   ========================================================= */
 
-await withClient(async (execute) => {
+await withClient(async (client) => {
+  const files = [
+    "database/postgres/01-schema.sql",
+    "database/postgres/02-seed.sql",
+  ];
+
   for (const file of files) {
+    console.log(`\n📄 Executando ${file}...`);
+
     const sql = readSql(file);
-    if (!sql) {
-      console.warn(`Arquivo não encontrado: ${file}`);
-      continue;
-    }
-    const statements = dialect === "mssql" ? splitTsql(sql) : splitPg(sql);
+    const statements = splitPg(sql);
+
     for (const statement of statements) {
       try {
-        await execute(statement);
+        await client.query(statement);
       } catch (error) {
-        // Objetos já existentes não interrompem o seed.
-        if (/already exists|There is already|existe/i.test(error.message)) continue;
+        const message =
+          error instanceof Error
+            ? error.message
+            : String(error);
+
+        /*
+         * Alguns objetos podem já existir.
+         * Como os arquivos usam IF NOT EXISTS,
+         * normalmente não haverá erro aqui.
+         */
+        if (/already exists/i.test(message)) {
+          console.warn(`⚠️ Objeto já existe: ${message}`);
+          continue;
+        }
+
+        console.error(`❌ Erro em ${file}:`);
+        console.error(message);
         throw error;
       }
     }
-    console.log(`✔ ${file}`);
+
+    console.log(`✅ ${file} concluído.`);
   }
 });
 
-// Administrador inicial (bcrypt)
+/* =========================================================
+   ADMINISTRADOR
+   ========================================================= */
+
 const { default: bcrypt } = await import("bcryptjs");
-const email = (process.env.ADMIN_EMAIL || "").toLowerCase();
+
+const email = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const password = process.env.ADMIN_PASSWORD;
-const name = process.env.ADMIN_NAME || "Administrador";
+const name =
+  (process.env.ADMIN_NAME || "Administrador").trim();
 
 if (!email || !password) {
-  console.warn("⚠ ADMIN_EMAIL/ADMIN_PASSWORD não definidos no .env — administrador não criado.");
+  console.warn(
+    "\n⚠️ ADMIN_EMAIL ou ADMIN_PASSWORD não estão definidos."
+  );
+
+  console.log(
+    "O banco foi preparado, mas o administrador não foi criado."
+  );
+
   process.exit(0);
 }
 
 const hash = await bcrypt.hash(password, 10);
-await withClient(async (execute) => {
-  const check =
-    dialect === "mssql"
-      ? `SELECT id FROM admins WHERE email = N'${email.replace(/'/g, "''")}'`
-      : `SELECT id FROM admins WHERE email = '${email.replace(/'/g, "''")}'`;
-  const existing = await execute(check);
-  const command = existing
-    ? `UPDATE admins SET password_hash = '${hash}', name = '${name.replace(/'/g, "''")}', updated_at = CURRENT_TIMESTAMP WHERE email = '${email.replace(/'/g, "''")}'`
-    : `INSERT INTO admins (name, email, password_hash, role, active) VALUES ('${name.replace(/'/g, "''")}', '${email.replace(/'/g, "''")}', '${hash}', 'OWNER', 1)`;
-  await execute(command);
+
+await withClient(async (client) => {
+  const result = await client.query(
+    `
+      SELECT id
+      FROM admins
+      WHERE LOWER(email) = LOWER($1)
+      LIMIT 1
+    `,
+    [email]
+  );
+
+  if (result.rows.length > 0) {
+    await client.query(
+      `
+        UPDATE admins
+        SET
+          name = $1,
+          password_hash = $2,
+          role = 'OWNER',
+          active = 1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `,
+      [name, hash, result.rows[0].id]
+    );
+
+    console.log(
+      `\n✅ Administrador atualizado: ${email}`
+    );
+  } else {
+    await client.query(
+      `
+        INSERT INTO admins
+          (
+            name,
+            email,
+            password_hash,
+            role,
+            active
+          )
+        VALUES
+          (
+            $1,
+            $2,
+            $3,
+            'OWNER',
+            1
+          )
+      `,
+      [name, email, hash]
+    );
+
+    console.log(
+      `\n✅ Administrador criado: ${email}`
+    );
+  }
 });
 
-console.log("✔ Administrador inicial garantido.");
-console.log(`SQL Server (dialect ${dialect}) semeado com sucesso. Login: ${email}`);
+console.log("\n========================================");
+console.log("✅ SEED CONCLUÍDO COM SUCESSO");
+console.log("========================================");
+console.log("Banco: Neon PostgreSQL");
+console.log("Schema: criado/verificado");
+console.log("Dados: criado/verificado");
+console.log("Administrador: criado/atualizado");
+console.log("========================================\n");
+
