@@ -1,10 +1,8 @@
-
 import { db, ident } from "@/lib/database/connection";
 import {
   bool,
   nowStamp,
   toDate,
-  toDateTime,
   toTime,
 } from "@/utils/datetime";
 import { notFound } from "@/lib/api/response";
@@ -23,13 +21,9 @@ function mapBusinessHour(
 ): BusinessHour {
   return {
     id: Number(row.id),
-
     day_of_week: Number(row.day_of_week),
-
     open_time: toTime(row.open_time),
-
     close_time: toTime(row.close_time),
-
     is_closed: bool(row.closed),
   };
 }
@@ -37,12 +31,17 @@ function mapBusinessHour(
 export async function getBusinessHours(): Promise<
   BusinessHour[]
 > {
-  const rows = await db.query<Record<string, unknown>>(
-    `SELECT
-        *
+  const rows =
+    await db.query<Record<string, unknown>>(
+      `SELECT
+          id,
+          day_of_week,
+          open_time,
+          close_time,
+          closed
        FROM ${ident("business_hours")}
-      ORDER BY day_of_week ASC`,
-  );
+       ORDER BY day_of_week ASC`,
+    );
 
   return rows.map(mapBusinessHour);
 }
@@ -53,15 +52,21 @@ export async function getBusinessHourByDay(
   const row =
     await db.first<Record<string, unknown>>(
       `SELECT
-          *
-         FROM ${ident("business_hours")}
-        WHERE day_of_week = @dayOfWeek`,
+          id,
+          day_of_week,
+          open_time,
+          close_time,
+          closed
+       FROM ${ident("business_hours")}
+       WHERE day_of_week = @dayOfWeek`,
       {
         dayOfWeek,
       },
     );
 
-  return row ? mapBusinessHour(row) : null;
+  return row
+    ? mapBusinessHour(row)
+    : null;
 }
 
 export async function upsertBusinessHour(
@@ -72,6 +77,16 @@ export async function upsertBusinessHour(
     is_closed: boolean;
   },
 ): Promise<void> {
+  const existing =
+    await db.first<{ id: number }>(
+      `SELECT id
+       FROM ${ident("business_hours")}
+       WHERE day_of_week = @dayOfWeek`,
+      {
+        dayOfWeek: hour.day_of_week,
+      },
+    );
+
   const params = {
     dayOfWeek: hour.day_of_week,
     openTime: hour.is_closed
@@ -80,27 +95,17 @@ export async function upsertBusinessHour(
     closeTime: hour.is_closed
       ? null
       : hour.close_time,
-    isClosed: hour.is_closed,
+    closed: hour.is_closed ? 1 : 0,
   };
-
-  const existing =
-    await db.first<{ id: number }>(
-      `SELECT
-          id
-         FROM ${ident("business_hours")}
-        WHERE day_of_week = @dayOfWeek`,
-      {
-        dayOfWeek: hour.day_of_week,
-      },
-    );
 
   if (existing) {
     await db.execute(
       `UPDATE ${ident("business_hours")}
-          SET open_time = @openTime,
-              close_time = @closeTime,
-              closed = @isClosed
-        WHERE id = @id`,
+       SET
+         open_time = @openTime,
+         close_time = @closeTime,
+         closed = @closed
+       WHERE id = @id`,
       {
         ...params,
         id: Number(existing.id),
@@ -110,12 +115,15 @@ export async function upsertBusinessHour(
     return;
   }
 
-  await db.insert("business_hours", {
-    day_of_week: hour.day_of_week,
-    open_time: params.openTime,
-    close_time: params.closeTime,
-    closed: params.isClosed,
-  });
+  await db.insert(
+    "business_hours",
+    {
+      day_of_week: hour.day_of_week,
+      open_time: params.openTime,
+      close_time: params.closeTime,
+      closed: params.closed,
+    },
+  );
 }
 
 /* =========================================================
@@ -123,7 +131,9 @@ export async function upsertBusinessHour(
    ========================================================= */
 
 /*
- * Estrutura REAL da tabela blocked_times:
+ * BANCO:
+ *
+ * blocked_times
  *
  * id
  * barber_id
@@ -132,11 +142,12 @@ export async function upsertBusinessHour(
  * end_time
  * reason
  * type
- * active
+ * active -> smallint
  * created_at
  * updated_at
  *
  * NÃO usar:
+ *
  * block_date
  * all_day
  */
@@ -159,11 +170,14 @@ function mapBlocked(
         ? null
         : String(row.barber_name),
 
-    date: toDate(row.date) as string,
+    date:
+      toDate(row.date) as string,
 
-    start_time: toTime(row.start_time),
+    start_time:
+      toTime(row.start_time),
 
-    end_time: toTime(row.end_time),
+    end_time:
+      toTime(row.end_time),
 
     reason:
       row.reason === null ||
@@ -179,9 +193,11 @@ function mapBlocked(
             row.type,
           ) as BlockedTime["type"]),
 
-    active: bool(row.active),
+    active:
+      bool(row.active),
 
-    created_at: toDateTime(row.created_at),
+    created_at:
+      toDate(row.created_at),
   };
 }
 
@@ -220,7 +236,10 @@ export async function getBlockedTimes(
     params.to = filters.to;
   }
 
-  if (filters.barber_id) {
+  if (
+    filters.barber_id !== null &&
+    filters.barber_id !== undefined
+  ) {
     conditions.push(
       `bt.barber_id = @barberId`,
     );
@@ -229,9 +248,21 @@ export async function getBlockedTimes(
       filters.barber_id;
   }
 
+  /*
+   * IMPORTANTE:
+   *
+   * active é SMALLINT no banco.
+   *
+   * Portanto:
+   * active = 1
+   *
+   * e NÃO:
+   * active = true
+   */
+
   if (filters.activeOnly) {
     conditions.push(
-      `bt.active = true`,
+      `bt.active = 1`,
     );
   }
 
@@ -247,19 +278,28 @@ export async function getBlockedTimes(
       Record<string, unknown>
     >(
       `SELECT
-          bt.*,
+          bt.id,
+          bt.barber_id,
+          bt.date,
+          bt.start_time,
+          bt.end_time,
+          bt.reason,
+          bt.type,
+          bt.active,
+          bt.created_at,
+          bt.updated_at,
           b.name AS barber_name
-         FROM ${ident(
-           "blocked_times",
-         )} bt
-         LEFT JOIN ${ident(
-           "barbers",
-         )} b
-           ON b.id = bt.barber_id
-         ${where}
-        ORDER BY
-          bt.date ASC,
-          bt.start_time ASC`,
+       FROM ${ident(
+         "blocked_times",
+       )} bt
+       LEFT JOIN ${ident(
+         "barbers",
+       )} b
+         ON b.id = bt.barber_id
+       ${where}
+       ORDER BY
+         bt.date ASC,
+         bt.start_time ASC`,
       params,
     );
 
@@ -302,16 +342,25 @@ export async function getBlockedById(
       Record<string, unknown>
     >(
       `SELECT
-          bt.*,
+          bt.id,
+          bt.barber_id,
+          bt.date,
+          bt.start_time,
+          bt.end_time,
+          bt.reason,
+          bt.type,
+          bt.active,
+          bt.created_at,
+          bt.updated_at,
           b.name AS barber_name
-         FROM ${ident(
-           "blocked_times",
-         )} bt
-         LEFT JOIN ${ident(
-           "barbers",
-         )} b
-           ON b.id = bt.barber_id
-        WHERE bt.id = @id`,
+       FROM ${ident(
+         "blocked_times",
+       )} bt
+       LEFT JOIN ${ident(
+         "barbers",
+       )} b
+         ON b.id = bt.barber_id
+       WHERE bt.id = @id`,
       {
         id,
       },
@@ -368,13 +417,17 @@ export async function createBlockedTime(
             : "BLOCK"
         ),
 
+      /*
+       * Banco = SMALLINT
+       *
+       * true  -> 1
+       * false -> 0
+       */
+
       active:
-        data.active,
+        data.active ? 1 : 0,
 
       created_at:
-        nowStamp(),
-
-      updated_at:
         nowStamp(),
     },
   );
@@ -477,6 +530,12 @@ export async function updateBlockedTime(
       data.type;
   }
 
+  /*
+   * active = SMALLINT
+   *
+   * Nunca enviar boolean diretamente.
+   */
+
   if (
     data.active !==
     undefined
@@ -486,28 +545,21 @@ export async function updateBlockedTime(
     );
 
     params.active =
-      data.active;
+      data.active ? 1 : 0;
   }
 
   if (!fields.length) {
     return;
   }
 
-  fields.push(
-    "updated_at = @updatedAt",
-  );
-
-  params.updatedAt =
-    nowStamp();
-
   await db.execute(
     `UPDATE ${ident(
       "blocked_times",
     )}
-        SET ${fields.join(
-          ", ",
-        )}
-      WHERE id = @id`,
+     SET ${fields.join(
+       ", ",
+     )}
+     WHERE id = @id`,
     params,
   );
 }
@@ -517,7 +569,9 @@ export async function updateBlockedTime(
    ========================================================= */
 
 /*
- * Estrutura REAL da tabela settings:
+ * BANCO:
+ *
+ * settings
  *
  * id
  * key
@@ -525,15 +579,9 @@ export async function updateBlockedTime(
  * updated_at
  *
  * NÃO usar:
+ *
  * setting_key
  * setting_value
- * created_at
- *
- * Também não usar:
- * [key]
- * [value]
- *
- * porque isso é sintaxe de SQL Server.
  */
 
 export async function getSettings(): Promise<
@@ -547,22 +595,18 @@ export async function getSettings(): Promise<
       `SELECT
           key,
           value
-         FROM ${ident("settings")}
-        ORDER BY key`,
+       FROM ${ident("settings")}
+       ORDER BY key`,
     );
 
   return rows.map(
     (row) => ({
-      key: String(
-        row.key,
-      ),
+      key: String(row.key),
 
       value:
         row.value === null
           ? null
-          : String(
-              row.value,
-            ),
+          : String(row.value),
     }),
   );
 }
@@ -572,29 +616,24 @@ export async function getSetting(
 ): Promise<string | null> {
   const row =
     await db.first<{
-      value:
-        | string
-        | null;
+      value: string | null;
     }>(
-      `SELECT
-          value
-         FROM ${ident(
-           "settings",
-         )}
-        WHERE key = @key`,
+      `SELECT value
+       FROM ${ident("settings")}
+       WHERE key = @key`,
       {
         key,
       },
     );
 
-  return row?.value !==
-    null &&
-    row?.value !==
-      undefined
-    ? String(
-        row.value,
-      )
-    : null;
+  if (
+    row?.value === null ||
+    row?.value === undefined
+  ) {
+    return null;
+  }
+
+  return String(row.value);
 }
 
 export async function setSetting(
@@ -602,15 +641,10 @@ export async function setSetting(
   value: string,
 ): Promise<void> {
   const existing =
-    await db.first<{
-      id: number;
-    }>(
-      `SELECT
-          id
-         FROM ${ident(
-           "settings",
-         )}
-        WHERE key = @key`,
+    await db.first<{ id: number }>(
+      `SELECT id
+       FROM ${ident("settings")}
+       WHERE key = @key`,
       {
         key,
       },
@@ -618,17 +652,14 @@ export async function setSetting(
 
   if (existing) {
     await db.execute(
-      `UPDATE ${ident(
-        "settings",
-      )}
-          SET setting_value = @value,
-              updated_at = @now
-        WHERE id = @id`,
+      `UPDATE ${ident("settings")}
+       SET
+         value = @value,
+         updated_at = @now
+       WHERE id = @id`,
       {
         value,
-
         now: nowStamp(),
-
         id: Number(
           existing.id,
         ),
@@ -641,14 +672,8 @@ export async function setSetting(
   await db.insert(
     "settings",
     {
-      setting_key: key,
-
-      setting_value:
-        value,
-
-      created_at:
-        nowStamp(),
-
+      key,
+      value,
       updated_at:
         nowStamp(),
     },
@@ -679,4 +704,3 @@ export async function deleteBlockedTime(
     );
   }
 }
-
