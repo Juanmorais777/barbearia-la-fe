@@ -4,6 +4,7 @@ import {
   bool,
   nowStamp,
   toDate,
+  toDateTime,
   toTime,
 } from "@/utils/datetime";
 import { notFound } from "@/lib/api/response";
@@ -14,7 +15,7 @@ import type {
 } from "@/types";
 
 /* =========================================================
-   HORÁRIOS
+   HORÁRIOS DE FUNCIONAMENTO
    ========================================================= */
 
 function mapBusinessHour(
@@ -36,12 +37,12 @@ function mapBusinessHour(
 export async function getBusinessHours(): Promise<
   BusinessHour[]
 > {
-  const rows =
-    await db.query<Record<string, unknown>>(
-      `SELECT *
-         FROM ${ident("business_hours")}
-        ORDER BY day_of_week ASC`,
-    );
+  const rows = await db.query<Record<string, unknown>>(
+    `SELECT
+        *
+       FROM ${ident("business_hours")}
+      ORDER BY day_of_week ASC`,
+  );
 
   return rows.map(mapBusinessHour);
 }
@@ -51,7 +52,8 @@ export async function getBusinessHourByDay(
 ): Promise<BusinessHour | null> {
   const row =
     await db.first<Record<string, unknown>>(
-      `SELECT *
+      `SELECT
+          *
          FROM ${ident("business_hours")}
         WHERE day_of_week = @dayOfWeek`,
       {
@@ -72,21 +74,19 @@ export async function upsertBusinessHour(
 ): Promise<void> {
   const params = {
     dayOfWeek: hour.day_of_week,
-
     openTime: hour.is_closed
       ? null
       : hour.open_time,
-
     closeTime: hour.is_closed
       ? null
       : hour.close_time,
-
-    isClosed: hour.is_closed ? 1 : 0,
+    isClosed: hour.is_closed,
   };
 
   const existing =
     await db.first<{ id: number }>(
-      `SELECT id
+      `SELECT
+          id
          FROM ${ident("business_hours")}
         WHERE day_of_week = @dayOfWeek`,
       {
@@ -123,7 +123,7 @@ export async function upsertBusinessHour(
    ========================================================= */
 
 /*
- * Estrutura atual do banco:
+ * Estrutura REAL da tabela blocked_times:
  *
  * id
  * barber_id
@@ -154,10 +154,10 @@ function mapBlocked(
         : Number(row.barber_id),
 
     barber_name:
-      row.barber_name !== null &&
-      row.barber_name !== undefined
-        ? String(row.barber_name)
-        : null,
+      row.barber_name === null ||
+      row.barber_name === undefined
+        ? null
+        : String(row.barber_name),
 
     date: toDate(row.date) as string,
 
@@ -166,22 +166,22 @@ function mapBlocked(
     end_time: toTime(row.end_time),
 
     reason:
-      row.reason !== null &&
-      row.reason !== undefined
-        ? String(row.reason)
-        : "",
+      row.reason === null ||
+      row.reason === undefined
+        ? ""
+        : String(row.reason),
 
     type:
-      row.type !== null &&
-      row.type !== undefined
-        ? (String(
+      row.type === null ||
+      row.type === undefined
+        ? ("BLOCK" as BlockedTime["type"])
+        : (String(
             row.type,
-          ) as BlockedTime["type"])
-        : ("BLOCK" as BlockedTime["type"]),
+          ) as BlockedTime["type"]),
 
     active: bool(row.active),
 
-    created_at: toDate(row.created_at),
+    created_at: toDateTime(row.created_at),
   };
 }
 
@@ -231,7 +231,7 @@ export async function getBlockedTimes(
 
   if (filters.activeOnly) {
     conditions.push(
-      `bt.active = 1`,
+      `bt.active = true`,
     );
   }
 
@@ -252,7 +252,9 @@ export async function getBlockedTimes(
          FROM ${ident(
            "blocked_times",
          )} bt
-         LEFT JOIN barbers b
+         LEFT JOIN ${ident(
+           "barbers",
+         )} b
            ON b.id = bt.barber_id
          ${where}
         ORDER BY
@@ -305,7 +307,9 @@ export async function getBlockedById(
          FROM ${ident(
            "blocked_times",
          )} bt
-         LEFT JOIN barbers b
+         LEFT JOIN ${ident(
+           "barbers",
+         )} b
            ON b.id = bt.barber_id
         WHERE bt.id = @id`,
       {
@@ -365,9 +369,12 @@ export async function createBlockedTime(
         ),
 
       active:
-        data.active ? 1 : 0,
+        data.active,
 
       created_at:
+        nowStamp(),
+
+      updated_at:
         nowStamp(),
     },
   );
@@ -479,12 +486,19 @@ export async function updateBlockedTime(
     );
 
     params.active =
-      data.active ? 1 : 0;
+      data.active;
   }
 
   if (!fields.length) {
     return;
   }
+
+  fields.push(
+    "updated_at = @updatedAt",
+  );
+
+  params.updatedAt =
+    nowStamp();
 
   await db.execute(
     `UPDATE ${ident(
@@ -502,37 +516,52 @@ export async function updateBlockedTime(
    CONFIGURAÇÕES
    ========================================================= */
 
+/*
+ * Estrutura REAL da tabela settings:
+ *
+ * id
+ * key
+ * value
+ * updated_at
+ *
+ * NÃO usar:
+ * setting_key
+ * setting_value
+ * created_at
+ *
+ * Também não usar:
+ * [key]
+ * [value]
+ *
+ * porque isso é sintaxe de SQL Server.
+ */
+
 export async function getSettings(): Promise<
   Setting[]
 > {
   const rows =
     await db.query<{
-      setting_key: string;
-      setting_value:
-        | string
-        | null;
+      key: string;
+      value: string | null;
     }>(
       `SELECT
-          setting_key,
-          setting_value
-         FROM ${ident(
-           "settings",
-         )}
-        ORDER BY setting_key`,
+          key,
+          value
+         FROM ${ident("settings")}
+        ORDER BY key`,
     );
 
   return rows.map(
     (row) => ({
       key: String(
-        row.setting_key,
+        row.key,
       ),
 
       value:
-        row.setting_value ===
-        null
+        row.value === null
           ? null
           : String(
-              row.setting_value,
+              row.value,
             ),
     }),
   );
@@ -543,26 +572,27 @@ export async function getSetting(
 ): Promise<string | null> {
   const row =
     await db.first<{
-      setting_value:
+      value:
         | string
         | null;
     }>(
-      `SELECT setting_value
+      `SELECT
+          value
          FROM ${ident(
            "settings",
          )}
-        WHERE setting_key = @key`,
+        WHERE key = @key`,
       {
         key,
       },
     );
 
-  return row?.setting_value !==
+  return row?.value !==
     null &&
-    row?.setting_value !==
+    row?.value !==
       undefined
     ? String(
-        row.setting_value,
+        row.value,
       )
     : null;
 }
@@ -575,11 +605,12 @@ export async function setSetting(
     await db.first<{
       id: number;
     }>(
-      `SELECT id
+      `SELECT
+          id
          FROM ${ident(
            "settings",
          )}
-        WHERE setting_key = @key`,
+        WHERE key = @key`,
       {
         key,
       },
