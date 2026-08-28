@@ -32,11 +32,6 @@ function mapBarber(
         ? String(row.phone)
         : null,
 
-    whatsapp:
-      row.whatsapp != null
-        ? String(row.whatsapp)
-        : null,
-
     email:
       row.email != null
         ? String(row.email)
@@ -57,15 +52,8 @@ function mapBarber(
         ? String(row.bio)
         : null,
 
-    /*
-     * SQL Server:
-     * commission_percentage
-     *
-     * Aplicação:
-     * commission_percent
-     */
     commission_percent: Number(
-      row.commission_percentage ?? 0,
+      row.commission_percent ?? 0,
     ),
 
     active:
@@ -81,7 +69,6 @@ function mapBarber(
         : null,
   };
 }
-
 /* =========================================================
    SERVIÇOS DOS BARBEIROS
    ========================================================= */
@@ -143,11 +130,10 @@ export async function list(
           id,
           name,
           phone,
-          whatsapp,
           email,
           photo,
           specialty,
-          commission_percentage,
+          commission_percent,
           active,
           created_at,
           updated_at,
@@ -191,11 +177,10 @@ export async function findById(
           id,
           name,
           phone,
-          whatsapp,
           email,
           photo,
           specialty,
-          commission_percentage,
+          commission_percent,
           active,
           created_at,
           updated_at,
@@ -232,10 +217,7 @@ export async function findById(
   return mapBarber(
     row,
     serviceRows.map(
-      (item) =>
-        Number(
-          item.service_id,
-        ),
+      (item) => Number(item.service_id),
     ),
   );
 }
@@ -248,7 +230,6 @@ export async function create(
   data: {
     name: string;
     phone?: string | null;
-    whatsapp?: string | null;
     email?: string | null;
     photo?: string | null;
     specialty?: string | null;
@@ -298,10 +279,6 @@ export async function create(
         data.phone?.trim() ||
         null,
 
-      whatsapp:
-        data.whatsapp?.trim() ||
-        null,
-
       email:
         data.email?.trim() ||
         null,
@@ -322,7 +299,7 @@ export async function create(
        * NOME EXATO DA COLUNA
        * NO SQL SERVER
        */
-      commission_percentage:
+      commission_percent:
         commission,
 
       active: 1,
@@ -339,7 +316,6 @@ export async function update(
   data: Partial<{
     name: string;
     phone: string | null;
-    whatsapp: string | null;
     email: string | null;
     photo: string | null;
     specialty: string | null;
@@ -378,19 +354,6 @@ export async function update(
 
     params.phone =
       data.phone?.trim() ||
-      null;
-  }
-
-  if (
-    data.whatsapp !==
-    undefined
-  ) {
-    fields.push(
-      "whatsapp = @whatsapp",
-    );
-
-    params.whatsapp =
-      data.whatsapp?.trim() ||
       null;
   }
 
@@ -472,7 +435,7 @@ export async function update(
     }
 
     fields.push(
-      "commission_percentage = @commission",
+      "commission_percent = @commission",
     );
 
     params.commission =

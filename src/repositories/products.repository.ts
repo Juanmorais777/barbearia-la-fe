@@ -106,7 +106,7 @@ function mapSale(row: Record<string, unknown>): ProductSale {
     barber_id: row.barber_id ? Number(row.barber_id) : null,
     quantity: num(row.quantity),
     unit_price: num(row.unit_price),
-    total: num(row.total_price),
+    total: num(row.total),
     payment_method: String(
       row.payment_method || "DINHEIRO",
     ) as ProductSale["payment_method"],
@@ -151,7 +151,7 @@ export async function createSale(
     customer_id: data.customer_id,
     quantity: data.quantity,
     unit_price: data.unit_price,
-    total_price: data.total,
+    total: data.total,
     payment_method: data.payment_method,
   });
 }

@@ -65,7 +65,6 @@ export interface Barber {
   id: number;
   name: string;
   phone: string | null;
-  whatsapp: string | null;
   email: string | null;
   photo: string | null;
   specialty: string | null;
