@@ -15,7 +15,7 @@ export async function statusSummary(
       SELECT
         status,
         COUNT(*) AS total,
-        SUM(price) AS amount
+        COALESCE(SUM(price), 0) AS amount
       FROM appointments
       WHERE appointment_date >= @from
         AND appointment_date <= @to
@@ -29,7 +29,10 @@ export async function statusSummary(
     },
   );
 
-  const result: Record<string, { total: number; amount: number }> = {};
+  const result: Record<
+    string,
+    { total: number; amount: number }
+  > = {};
 
   for (const row of rows) {
     result[String(row.status)] = {
@@ -54,7 +57,7 @@ export async function serviceRanking(
       SELECT
         s.name,
         COUNT(*) AS total,
-        SUM(a.price) AS revenue
+        COALESCE(SUM(a.price), 0) AS revenue
       FROM appointments a
       INNER JOIN services s
         ON s.id = a.service_id
@@ -91,7 +94,7 @@ export async function barberRanking(
       SELECT
         b.name,
         COUNT(*) AS total,
-        SUM(a.price) AS revenue
+        COALESCE(SUM(a.price), 0) AS revenue
       FROM appointments a
       INNER JOIN barbers b
         ON b.id = a.barber_id
@@ -99,7 +102,7 @@ export async function barberRanking(
         AND a.appointment_date >= @from
         AND a.appointment_date <= @to
       GROUP BY b.name
-      ORDER BY SUM(a.price) DESC
+      ORDER BY COALESCE(SUM(a.price), 0) DESC
     `,
     {
       from,
@@ -117,8 +120,13 @@ export async function barberRanking(
 /**
  * Faturamento por dia.
  *
- * Usa appointments concluídos para receitas
- * e transactions para despesas.
+ * Compatível com PostgreSQL / Neon.
+ *
+ * Receitas:
+ *   appointments concluídos
+ *
+ * Despesas:
+ *   transactions com type = EXPENSE
  */
 export async function revenueByDay(
   from: string,
@@ -128,10 +136,25 @@ export async function revenueByDay(
     `
       SELECT
         d.date_value,
-        ISNULL(i.income, 0) AS income,
-        ISNULL(e.expense, 0) AS expense
-      FROM
-      (
+        COALESCE(
+          (
+            SELECT SUM(a.price)
+            FROM appointments a
+            WHERE a.appointment_date = d.date_value
+              AND a.status = 'CONCLUIDO'
+          ),
+          0
+        ) AS income,
+        COALESCE(
+          (
+            SELECT SUM(t.amount)
+            FROM transactions t
+            WHERE t.transaction_date = d.date_value
+              AND t.type = 'EXPENSE'
+          ),
+          0
+        ) AS expense
+      FROM (
         SELECT DISTINCT appointment_date AS date_value
         FROM appointments
         WHERE appointment_date >= @from
@@ -144,23 +167,6 @@ export async function revenueByDay(
         WHERE transaction_date >= @from
           AND transaction_date <= @to
       ) d
-
-      OUTER APPLY
-      (
-        SELECT SUM(a.price) AS income
-        FROM appointments a
-        WHERE a.appointment_date = d.date_value
-          AND a.status = 'CONCLUIDO'
-      ) i
-
-      OUTER APPLY
-      (
-        SELECT SUM(t.amount) AS expense
-        FROM transactions t
-        WHERE t.transaction_date = d.date_value
-          AND t.type = 'EXPENSE'
-      ) e
-
       ORDER BY d.date_value ASC
     `,
     {
@@ -187,14 +193,14 @@ export async function paymentBreakdown(
     `
       SELECT
         payment_method,
-        SUM(amount) AS amount
+        COALESCE(SUM(amount), 0) AS amount
       FROM transactions
       WHERE type = 'INCOME'
         AND transaction_date >= @from
         AND transaction_date <= @to
         AND payment_method IS NOT NULL
       GROUP BY payment_method
-      ORDER BY SUM(amount) DESC
+      ORDER BY COALESCE(SUM(amount), 0) DESC
     `,
     {
       from,
@@ -219,13 +225,13 @@ export async function expensesByCategory(
     `
       SELECT
         category,
-        SUM(amount) AS amount
+        COALESCE(SUM(amount), 0) AS amount
       FROM transactions
       WHERE type = 'EXPENSE'
         AND transaction_date >= @from
         AND transaction_date <= @to
       GROUP BY category
-      ORDER BY SUM(amount) DESC
+      ORDER BY COALESCE(SUM(amount), 0) DESC
     `,
     {
       from,
@@ -242,9 +248,7 @@ export async function expensesByCategory(
 /**
  * Produtos vendidos.
  *
- * IMPORTANTE:
- * A tabela product_sales usa total_price,
- * e não total.
+ * A tabela product_sales usa total_price.
  */
 export async function productsSold(
   from: string,
@@ -254,15 +258,15 @@ export async function productsSold(
     `
       SELECT
         p.name,
-        SUM(ps.quantity) AS quantity,
-        SUM(ps.total_price) AS revenue
+        COALESCE(SUM(ps.quantity), 0) AS quantity,
+        COALESCE(SUM(ps.total_price), 0) AS revenue
       FROM product_sales ps
       INNER JOIN products p
         ON p.id = ps.product_id
       WHERE ps.created_at >= @from
         AND ps.created_at <= @to
       GROUP BY p.name
-      ORDER BY SUM(ps.total_price) DESC
+      ORDER BY COALESCE(SUM(ps.total_price), 0) DESC
     `,
     {
       from: `${from} 00:00:00`,
