@@ -531,23 +531,6 @@ export async function getSettings(): Promise<Setting[]> {
   }));
 }
 
-  return rows.map(
-    (row) => ({
-      key: String(
-        row.setting_key,
-      ),
-
-      value:
-        row.setting_value ===
-        null
-          ? null
-          : String(
-              row.setting_value,
-            ),
-    }),
-  );
-}
-
 export async function getSetting(
   key: string,
 ): Promise<string | null> {
