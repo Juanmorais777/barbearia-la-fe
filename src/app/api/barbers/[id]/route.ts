@@ -14,13 +14,6 @@ type Context = {
   params: Promise<{ id: string }>;
 };
 
-type HourInput = {
-  day_of_week: number;
-  open_time: string | null;
-  close_time: string | null;
-  closed: boolean;
-};
-
 function normalizeTime(value: unknown): string | null {
   if (value == null || value === "") {
     return null;
@@ -90,58 +83,49 @@ export async function PUT(
       );
     }
 
-    const hours: HourInput[] =
-      body.hours.map(
-        (hour: Record<string, unknown>) => {
-          const day = Number(
-            hour.day_of_week,
+    const hours = body.hours.map(
+      (hour: Record<string, unknown>) => {
+        const day = Number(hour.day_of_week);
+
+        if (
+          !Number.isInteger(day) ||
+          day < 0 ||
+          day > 6
+        ) {
+          throw new Error(
+            "Dia da semana inválido.",
           );
+        }
 
-          if (
-            !Number.isInteger(day) ||
-            day < 0 ||
-            day > 6
-          ) {
-            throw new Error(
-              "Dia da semana inválido.",
-            );
-          }
+        const closed = Boolean(hour.closed);
 
-          const closed =
-            Boolean(hour.closed);
+        return {
+          day_of_week: day,
 
-          return {
-            day_of_week: day,
+          start_time: closed
+            ? null
+            : normalizeTime(
+                hour.open_time,
+              ),
 
-            open_time: closed
-              ? null
-              : normalizeTime(
-                  hour.open_time,
-                ),
+          end_time: closed
+            ? null
+            : normalizeTime(
+                hour.close_time,
+              ),
 
-            close_time: closed
-              ? null
-              : normalizeTime(
-                  hour.close_time,
-                ),
-
-            closed,
-          };
-        },
-      );
+          is_closed: closed,
+        };
+      },
+    );
 
     await barbersRepository.upsertHours(
       barberId,
       hours,
     );
 
-    const saved =
-      await barbersRepository.listHours(
-        barberId,
-      );
-
     return ok({
-      hours: saved,
+      hours,
     });
   });
 }
