@@ -1,5 +1,11 @@
+
 import { db, ident } from "@/lib/database/connection";
-import { bool, nowStamp, toDate, toTime } from "@/utils/datetime";
+import {
+  bool,
+  nowStamp,
+  toDate,
+  toTime,
+} from "@/utils/datetime";
 import { notFound } from "@/lib/api/response";
 import type {
   BlockedTime,
@@ -117,7 +123,7 @@ export async function upsertBusinessHour(
    ========================================================= */
 
 /*
- * Banco atual:
+ * Estrutura atual do banco:
  *
  * id
  * barber_id
@@ -130,7 +136,7 @@ export async function upsertBusinessHour(
  * created_at
  * updated_at
  *
- * NÃO existem:
+ * NÃO usar:
  * block_date
  * all_day
  */
@@ -153,7 +159,6 @@ function mapBlocked(
         ? String(row.barber_name)
         : null,
 
-    // Banco: date
     date: toDate(row.date) as string,
 
     start_time: toTime(row.start_time),
@@ -166,7 +171,6 @@ function mapBlocked(
         ? String(row.reason)
         : "",
 
-    // Banco possui type
     type:
       row.type !== null &&
       row.type !== undefined
@@ -199,11 +203,6 @@ export async function getBlockedTimes(
     string,
     unknown
   > = {};
-
-  /*
-   * CORREÇÃO:
-   * Banco possui "date", não "block_date".
-   */
 
   if (filters.from) {
     conditions.push(
@@ -344,8 +343,8 @@ export async function createBlockedTime(
       barber_id:
         data.barber_id,
 
-      // Banco: date
-      date: data.date,
+      date:
+        data.date,
 
       start_time:
         data.start_time,
@@ -356,7 +355,6 @@ export async function createBlockedTime(
       reason:
         data.reason,
 
-      // Banco possui type
       type:
         data.type ||
         (
@@ -411,11 +409,6 @@ export async function updateBlockedTime(
     params.barberId =
       data.barber_id;
   }
-
-  /*
-   * CORREÇÃO:
-   * Banco possui "date".
-   */
 
   if (
     data.date !==
@@ -509,26 +502,40 @@ export async function updateBlockedTime(
    CONFIGURAÇÕES
    ========================================================= */
 
+export async function getSettings(): Promise<
+  Setting[]
+> {
+  const rows =
+    await db.query<{
+      setting_key: string;
+      setting_value:
+        | string
+        | null;
+    }>(
+      `SELECT
+          setting_key,
+          setting_value
+         FROM ${ident(
+           "settings",
+         )}
+        ORDER BY setting_key`,
+    );
 
-export async function getSettings(): Promise<Setting[]> {
-  const rows = await db.query<{
-    setting_key: string;
-    setting_value: string | null;
-  }>(
-    `SELECT
-        setting_key,
-        setting_value
-       FROM ${ident("settings")}
-      ORDER BY setting_key`,
+  return rows.map(
+    (row) => ({
+      key: String(
+        row.setting_key,
+      ),
+
+      value:
+        row.setting_value ===
+        null
+          ? null
+          : String(
+              row.setting_value,
+            ),
+    }),
   );
-
-  return rows.map((row) => ({
-    key: String(row.setting_key),
-    value:
-      row.setting_value === null
-        ? null
-        : String(row.setting_value),
-  }));
 }
 
 export async function getSetting(
@@ -540,11 +547,11 @@ export async function getSetting(
         | string
         | null;
     }>(
-      `SELECT [setting_value]
+      `SELECT setting_value
          FROM ${ident(
            "settings",
          )}
-        WHERE [setting_key] = @key`,
+        WHERE setting_key = @key`,
       {
         key,
       },
@@ -572,7 +579,7 @@ export async function setSetting(
          FROM ${ident(
            "settings",
          )}
-        WHERE [setting_key] = @key`,
+        WHERE setting_key = @key`,
       {
         key,
       },
@@ -583,8 +590,8 @@ export async function setSetting(
       `UPDATE ${ident(
         "settings",
       )}
-          SET [setting_value] = @value,
-              [updated_at] = @now
+          SET setting_value = @value,
+              updated_at = @now
         WHERE id = @id`,
       {
         value,

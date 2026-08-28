@@ -26,11 +26,22 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!data?.settings) return;
+
     const next: Record<string, string> = {};
     data.settings.forEach((setting) => {
       next[setting.key] = setting.value || "";
     });
-    setValues(next);
+
+    const frame = requestAnimationFrame(() => {
+      setValues((current) => {
+        const same = Object.keys(next).length === Object.keys(current).length &&
+          Object.entries(next).every(([key, value]) => current[key] === value);
+
+        return same ? current : next;
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, [data]);
 
   async function save(event: React.FormEvent) {
