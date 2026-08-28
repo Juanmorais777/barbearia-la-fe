@@ -45,82 +45,177 @@ export async function dashboard(): Promise<DashboardData> {
 
   const month = monthRange(today);
 
-  const [
-    todaySummary,
-    monthSummary,
-    revenueDay,
-    revenueMonth,
-    commissions,
-    upcoming,
-    topServices,
-    barberPerformance,
-    lowStock,
-    blocks,
-  ] = await Promise.all([
-    /* Agendamentos de hoje */
-    analyticsRepo.statusSummary(
-      today,
-      today,
-    ),
+  console.log("[DASHBOARD] INICIO");
+  console.log("[DASHBOARD] today:", today);
+  console.log("[DASHBOARD] month:", month);
 
-    /* Resumo do mês */
-    analyticsRepo.statusSummary(
+  /* =========================================================
+     1 — AGENDAMENTOS DE HOJE
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 1 - analyticsRepo.statusSummary HOJE",
+  );
+
+  const todaySummary =
+    await analyticsRepo.statusSummary(
+      today,
+      today,
+    );
+
+  console.log("[DASHBOARD] 1 - OK");
+
+  /* =========================================================
+     2 — RESUMO DO MÊS
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 2 - analyticsRepo.statusSummary MÊS",
+  );
+
+  const monthSummary =
+    await analyticsRepo.statusSummary(
       month.start,
       month.end,
-    ),
+    );
 
-    /* Faturamento de hoje */
-    analyticsRepo.revenueByDay(
+  console.log("[DASHBOARD] 2 - OK");
+
+  /* =========================================================
+     3 — FATURAMENTO DE HOJE
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 3 - analyticsRepo.revenueByDay HOJE",
+  );
+
+  const revenueDay =
+    await analyticsRepo.revenueByDay(
       today,
       today,
-    ),
+    );
 
-    /* Faturamento do mês */
-    analyticsRepo.revenueByDay(
+  console.log("[DASHBOARD] 3 - OK");
+
+  /* =========================================================
+     4 — FATURAMENTO DO MÊS
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 4 - analyticsRepo.revenueByDay MÊS",
+  );
+
+  const revenueMonth =
+    await analyticsRepo.revenueByDay(
       month.start,
       month.end,
-    ),
+    );
 
-    /* Comissões */
-    financeRepo.commissionSummary({
+  console.log("[DASHBOARD] 4 - OK");
+
+  /* =========================================================
+     5 — COMISSÕES
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 5 - financeRepo.commissionSummary",
+  );
+
+  const commissions =
+    await financeRepo.commissionSummary({
       from: month.start,
       to: month.end,
-    }),
+    });
 
-    /* Próximos agendamentos */
-    appointmentsRepo.list(
+  console.log("[DASHBOARD] 5 - OK");
+
+  /* =========================================================
+     6 — PRÓXIMOS AGENDAMENTOS
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 6 - appointmentsRepo.list",
+  );
+
+  const upcoming =
+    await appointmentsRepo.list(
       {
         from: today,
         upcoming: true,
       },
       8,
-    ),
+    );
 
-    /* Serviços mais realizados */
-    analyticsRepo.serviceRanking(
+  console.log("[DASHBOARD] 6 - OK");
+
+  /* =========================================================
+     7 — SERVIÇOS MAIS REALIZADOS
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 7 - analyticsRepo.serviceRanking",
+  );
+
+  const topServices =
+    await analyticsRepo.serviceRanking(
       month.start,
       month.end,
-    ),
+    );
 
-    /* Desempenho dos barbeiros */
-    analyticsRepo.barberRanking(
+  console.log("[DASHBOARD] 7 - OK");
+
+  /* =========================================================
+     8 — DESEMPENHO DOS BARBEIROS
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 8 - analyticsRepo.barberRanking",
+  );
+
+  const barberPerformance =
+    await analyticsRepo.barberRanking(
       month.start,
       month.end,
-    ),
+    );
 
-    /* Produtos com estoque baixo */
-    productsRepo.list({
+  console.log("[DASHBOARD] 8 - OK");
+
+  /* =========================================================
+     9 — PRODUTOS COM ESTOQUE BAIXO
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 9 - productsRepo.list",
+  );
+
+  const lowStock =
+    await productsRepo.list({
       activeOnly: true,
       lowStock: true,
-    }),
+    });
 
-    /* Bloqueios próximos */
-    scheduleRepo.getBlockedTimes({
+  console.log("[DASHBOARD] 9 - OK");
+
+  /* =========================================================
+     10 — BLOQUEIOS PRÓXIMOS
+     ========================================================= */
+
+  console.log(
+    "[DASHBOARD] 10 - scheduleRepo.getBlockedTimes",
+  );
+
+  const blocks =
+    await scheduleRepo.getBlockedTimes({
       from: today,
       to: addDays(today, 15),
       activeOnly: true,
-    }),
-  ]);
+    });
+
+  console.log("[DASHBOARD] 10 - OK");
+
+  console.log(
+    "[DASHBOARD] FIM - todas as consultas OK",
+  );
 
   /* =========================================================
      FATURAMENTO
@@ -129,21 +224,24 @@ export async function dashboard(): Promise<DashboardData> {
   const revenueDayIncome =
     revenueDay.reduce(
       (total, row) =>
-        total + Number(row.income || 0),
+        total +
+        Number(row.income || 0),
       0,
     );
 
   const revenueMonthIncome =
     revenueMonth.reduce(
       (total, row) =>
-        total + Number(row.income || 0),
+        total +
+        Number(row.income || 0),
       0,
     );
 
   const revenueMonthExpense =
     revenueMonth.reduce(
       (total, row) =>
-        total + Number(row.expense || 0),
+        total +
+        Number(row.expense || 0),
       0,
     );
 
@@ -168,10 +266,11 @@ export async function dashboard(): Promise<DashboardData> {
 
   const get = (
     status: AppointmentStatus,
-  ) => statusCount(
-    todaySummary,
-    status,
-  );
+  ) =>
+    statusCount(
+      todaySummary,
+      status,
+    );
 
   /* =========================================================
      RETORNO
@@ -190,9 +289,11 @@ export async function dashboard(): Promise<DashboardData> {
             0,
           ),
 
-      pending: get("PENDENTE"),
+      pending:
+        get("PENDENTE"),
 
-      confirmed: get("CONFIRMADO"),
+      confirmed:
+        get("CONFIRMADO"),
 
       in_progress:
         get("EM_ATENDIMENTO"),
@@ -205,9 +306,11 @@ export async function dashboard(): Promise<DashboardData> {
     },
 
     revenue: {
-      day: revenueDayIncome,
+      day:
+        revenueDayIncome,
 
-      month: revenueMonthIncome,
+      month:
+        revenueMonthIncome,
 
       expenses_month:
         revenueMonthExpense,
@@ -219,10 +322,14 @@ export async function dashboard(): Promise<DashboardData> {
 
     commissions: {
       pending:
-        Number(commissions.pending || 0),
+        Number(
+          commissions.pending || 0,
+        ),
 
       paid:
-        Number(commissions.paid || 0),
+        Number(
+          commissions.paid || 0,
+        ),
     },
 
     next_appointments:
@@ -235,16 +342,18 @@ export async function dashboard(): Promise<DashboardData> {
       barberPerformance,
 
     low_stock:
-      lowStock.map((product) => ({
-        id: product.id,
+      lowStock.map(
+        (product) => ({
+          id: product.id,
 
-        name: product.name,
+          name: product.name,
 
-        stock: product.stock,
+          stock: product.stock,
 
-        minimum_stock:
-          product.minimum_stock,
-      })),
+          minimum_stock:
+            product.minimum_stock,
+        }),
+      ),
 
     upcoming_blocks:
       blocks.slice(0, 8),
