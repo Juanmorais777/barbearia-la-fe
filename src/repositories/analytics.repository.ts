@@ -250,6 +250,7 @@ export async function expensesByCategory(
  *
  * A tabela product_sales usa total_price.
  */
+
 export async function productsSold(
   from: string,
   to: string,
@@ -259,14 +260,14 @@ export async function productsSold(
       SELECT
         p.name,
         COALESCE(SUM(ps.quantity), 0) AS quantity,
-        COALESCE(SUM(ps.total_price), 0) AS revenue
+        COALESCE(SUM(ps.total), 0) AS revenue
       FROM product_sales ps
       INNER JOIN products p
         ON p.id = ps.product_id
       WHERE ps.created_at >= @from
         AND ps.created_at <= @to
       GROUP BY p.name
-      ORDER BY COALESCE(SUM(ps.total_price), 0) DESC
+      ORDER BY COALESCE(SUM(ps.total), 0) DESC
     `,
     {
       from: `${from} 00:00:00`,
@@ -280,6 +281,7 @@ export async function productsSold(
     revenue: num(row.revenue),
   }));
 }
+
 
 /**
  * Quantidade de clientes atendidos.
