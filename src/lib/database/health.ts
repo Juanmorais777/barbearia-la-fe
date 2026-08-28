@@ -1,4 +1,5 @@
-import { db } from "@/lib/database/connection";
+
+import { db, dialect } from "@/lib/database/connection";
 
 export type HealthResult = {
   connected: boolean;
@@ -17,13 +18,16 @@ export async function checkDatabase(): Promise<HealthResult> {
 
     const connected = row !== null;
 
+    const database =
+      dialect === "postgres"
+        ? "Neon PostgreSQL"
+        : process.env.DB_DATABASE || "SQL Server";
+
     return {
       connected,
-      database: process.env.DATABASE_URL
-        ? "Neon PostgreSQL"
-        : process.env.DB_DATABASE || "la fe",
+      database,
       message: connected
-        ? "PostgreSQL conectado com sucesso."
+        ? `${database} conectado com sucesso.`
         : "Banco sem resposta.",
       latencyMs: Date.now() - started,
     };
@@ -33,13 +37,17 @@ export async function checkDatabase(): Promise<HealthResult> {
       error,
     );
 
+    const database =
+      dialect === "postgres"
+        ? "Neon PostgreSQL"
+        : process.env.DB_DATABASE || "SQL Server";
+
     return {
       connected: false,
-      database: process.env.DATABASE_URL
-        ? "Neon PostgreSQL"
-        : process.env.DB_DATABASE || "la fe",
+      database,
       message: "Banco de dados desconectado",
       latencyMs: Date.now() - started,
     };
   }
 }
+

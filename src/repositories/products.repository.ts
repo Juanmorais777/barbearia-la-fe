@@ -97,6 +97,7 @@ export async function reduceStock(executor: DbExecutor, productId: number, quant
   return findById(productId, executor);
 }
 
+
 function mapSale(row: Record<string, unknown>): ProductSale {
   return {
     id: Number(row.id),
@@ -112,6 +113,7 @@ function mapSale(row: Record<string, unknown>): ProductSale {
     created_at: toDateTime(row.created_at),
   };
 }
+
 
 export async function listSales(filters: { from?: string | null; to?: string | null; product_id?: number | null } = {}): Promise<ProductSale[]> {
   const conditions: string[] = [];
@@ -145,6 +147,7 @@ export async function createSale(
 ): Promise<number> {
   return executor.insert("product_sales", {
     product_id: data.product_id,
+    barber_id: data.barber_id,
     customer_id: data.customer_id,
     quantity: data.quantity,
     unit_price: data.unit_price,
