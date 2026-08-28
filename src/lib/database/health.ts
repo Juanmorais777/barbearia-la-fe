@@ -9,20 +9,35 @@ export type HealthResult = {
 
 export async function checkDatabase(): Promise<HealthResult> {
   const started = Date.now();
+
   try {
-    const row = await db.first<{ connected: number | boolean }>("SELECT 1 AS connected");
+    const row = await db.first<{ connected: number }>(
+      "SELECT 1 AS connected",
+    );
+
     const connected = row !== null;
+
     return {
       connected,
-      database: process.env.DB_DATABASE || "la fe",
-      message: connected ? "SQL Server conectado com sucesso." : "Banco sem resposta.",
+      database: process.env.DATABASE_URL
+        ? "Neon PostgreSQL"
+        : process.env.DB_DATABASE || "la fe",
+      message: connected
+        ? "PostgreSQL conectado com sucesso."
+        : "Banco sem resposta.",
       latencyMs: Date.now() - started,
     };
   } catch (error) {
-    console.error("[La Fé] Falha ao conectar no banco:", error);
+    console.error(
+      "[La Fé] Falha ao conectar no banco:",
+      error,
+    );
+
     return {
       connected: false,
-      database: process.env.DB_DATABASE || "la fe",
+      database: process.env.DATABASE_URL
+        ? "Neon PostgreSQL"
+        : process.env.DB_DATABASE || "la fe",
       message: "Banco de dados desconectado",
       latencyMs: Date.now() - started,
     };

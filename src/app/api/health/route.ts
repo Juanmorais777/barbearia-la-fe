@@ -4,17 +4,22 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const health = await checkDatabase();
+
   if (!health.connected) {
     return Response.json(
-      { success: false, message: "Banco de dados desconectado", database: health.database },
+      {
+        success: false,
+        message: health.message,
+        database: health.database,
+      },
       { status: 503 },
     );
   }
+
   return Response.json({
     success: true,
     message: "API funcionando",
-    database: "connected",
+    database: health.database,
     latency_ms: health.latencyMs,
-    server: process.env.DB_SERVER || "localhost",
   });
 }
