@@ -154,7 +154,6 @@ const COMMISSION_SELECT = `
     cm.id,
     cm.appointment_id,
     cm.barber_id,
-    cm.service_id,
 
     b.name AS barber_name,
     c.name AS customer_name,
@@ -162,11 +161,12 @@ const COMMISSION_SELECT = `
 
     a.appointment_date,
 
-    cm.appointment_price,
-    cm.commission_percentage,
-    cm.commission_amount,
+    cm.base_amount,
+    cm.percent,
+    cm.amount,
 
     cm.status,
+    cm.paid_at,
     cm.created_at
 
   FROM commissions cm
@@ -207,11 +207,11 @@ function mapCommission(
     // commission_percentage
     // commission_amount
 
-    base_amount: num(row.appointment_price),
+    base_amount: num(row.base_amount),
 
-    percent: num(row.commission_percentage),
+    percent: num(row.percent),
 
-    amount: num(row.commission_amount),
+    amount: num(row.amount),
 
     status: String(row.status) as Commission["status"],
 
@@ -317,9 +317,9 @@ export async function createCommission(
     barber_id: data.barber_id,
     service_id: data.service_id,
 
-    appointment_price: data.base_amount,
-    commission_percentage: data.percent,
-    commission_amount: data.amount,
+    base_amount: data.base_amount,
+    percent: data.percent,
+    amount: data.amount,
 
     status: "PENDENTE",
   });
@@ -389,7 +389,7 @@ export async function commissionSummary(filters: {
       SELECT
         cm.status,
         COUNT(*) AS total,
-        SUM(cm.commission_amount) AS amount
+        SUM(cm.amount) AS amount
 
       FROM commissions cm
 
