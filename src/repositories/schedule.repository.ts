@@ -1,3 +1,4 @@
+
 import { db, ident } from "@/lib/database/connection";
 import {
   bool,
@@ -14,6 +15,14 @@ import type {
 
 /* =========================================================
    HORÁRIOS DE FUNCIONAMENTO
+   Banco:
+   id
+   day_of_week
+   open_time
+   close_time
+   is_closed
+   created_at
+   updated_at
    ========================================================= */
 
 function mapBusinessHour(
@@ -21,10 +30,24 @@ function mapBusinessHour(
 ): BusinessHour {
   return {
     id: Number(row.id),
-    day_of_week: Number(row.day_of_week),
-    open_time: toTime(row.open_time),
-    close_time: toTime(row.close_time),
-    is_closed: bool(row.closed),
+
+    day_of_week: Number(
+      row.day_of_week,
+    ),
+
+    open_time: toTime(
+      row.open_time,
+    ),
+
+    close_time: toTime(
+      row.close_time,
+    ),
+
+    // Banco: is_closed SMALLINT
+    // Frontend: is_closed BOOLEAN
+    is_closed: bool(
+      row.is_closed,
+    ),
   };
 }
 
@@ -32,32 +55,46 @@ export async function getBusinessHours(): Promise<
   BusinessHour[]
 > {
   const rows =
-    await db.query<Record<string, unknown>>(
+    await db.query<
+      Record<string, unknown>
+    >(
       `SELECT
           id,
           day_of_week,
           open_time,
           close_time,
-          closed
-       FROM ${ident("business_hours")}
+          is_closed,
+          created_at,
+          updated_at
+       FROM ${ident(
+         "business_hours",
+       )}
        ORDER BY day_of_week ASC`,
     );
 
-  return rows.map(mapBusinessHour);
+  return rows.map(
+    mapBusinessHour,
+  );
 }
 
 export async function getBusinessHourByDay(
   dayOfWeek: number,
 ): Promise<BusinessHour | null> {
   const row =
-    await db.first<Record<string, unknown>>(
+    await db.first<
+      Record<string, unknown>
+    >(
       `SELECT
           id,
           day_of_week,
           open_time,
           close_time,
-          closed
-       FROM ${ident("business_hours")}
+          is_closed,
+          created_at,
+          updated_at
+       FROM ${ident(
+         "business_hours",
+       )}
        WHERE day_of_week = @dayOfWeek`,
       {
         dayOfWeek,
@@ -78,37 +115,57 @@ export async function upsertBusinessHour(
   },
 ): Promise<void> {
   const existing =
-    await db.first<{ id: number }>(
+    await db.first<{
+      id: number;
+    }>(
       `SELECT id
-       FROM ${ident("business_hours")}
-       WHERE day_of_week = @dayOfWeek`,
+         FROM ${ident(
+           "business_hours",
+         )}
+        WHERE day_of_week = @dayOfWeek`,
       {
-        dayOfWeek: hour.day_of_week,
+        dayOfWeek:
+          hour.day_of_week,
       },
     );
 
   const params = {
-    dayOfWeek: hour.day_of_week,
-    openTime: hour.is_closed
-      ? null
-      : hour.open_time,
-    closeTime: hour.is_closed
-      ? null
-      : hour.close_time,
-    closed: hour.is_closed ? 1 : 0,
+    dayOfWeek:
+      hour.day_of_week,
+
+    openTime:
+      hour.is_closed
+        ? null
+        : hour.open_time,
+
+    closeTime:
+      hour.is_closed
+        ? null
+        : hour.close_time,
+
+    // SQL Server/PostgreSQL schema:
+    // is_closed = SMALLINT
+    isClosed:
+      hour.is_closed ? 1 : 0,
   };
 
   if (existing) {
     await db.execute(
-      `UPDATE ${ident("business_hours")}
-       SET
-         open_time = @openTime,
-         close_time = @closeTime,
-         closed = @closed
-       WHERE id = @id`,
+      `UPDATE ${ident(
+        "business_hours",
+      )}
+          SET open_time = @openTime,
+              close_time = @closeTime,
+              is_closed = @isClosed,
+              updated_at = @updatedAt
+        WHERE id = @id`,
       {
         ...params,
-        id: Number(existing.id),
+        id: Number(
+          existing.id,
+        ),
+        updatedAt:
+          nowStamp(),
       },
     );
 
@@ -118,39 +175,45 @@ export async function upsertBusinessHour(
   await db.insert(
     "business_hours",
     {
-      day_of_week: hour.day_of_week,
-      open_time: params.openTime,
-      close_time: params.closeTime,
-      closed: params.closed,
+      day_of_week:
+        hour.day_of_week,
+
+      open_time:
+        params.openTime,
+
+      close_time:
+        params.closeTime,
+
+      is_closed:
+        params.isClosed,
+
+      created_at:
+        nowStamp(),
+
+      updated_at:
+        nowStamp(),
     },
   );
 }
 
 /* =========================================================
    BLOQUEIOS
-   ========================================================= */
+   Banco:
+   id
+   barber_id
+   date
+   start_time
+   end_time
+   reason
+   type
+   active
+   created_at
+   updated_at
 
-/*
- * BANCO:
- *
- * blocked_times
- *
- * id
- * barber_id
- * date
- * start_time
- * end_time
- * reason
- * type
- * active -> smallint
- * created_at
- * updated_at
- *
- * NÃO usar:
- *
- * block_date
- * all_day
- */
+   NÃO usar:
+   block_date
+   all_day
+   ========================================================= */
 
 function mapBlocked(
   row: Record<string, unknown>,
@@ -159,51 +222,68 @@ function mapBlocked(
     id: Number(row.id),
 
     barber_id:
-      row.barber_id === null ||
-      row.barber_id === undefined
+      row.barber_id ===
+        null ||
+      row.barber_id ===
+        undefined
         ? null
-        : Number(row.barber_id),
+        : Number(
+            row.barber_id,
+          ),
 
     barber_name:
-      row.barber_name === null ||
-      row.barber_name === undefined
+      row.barber_name ===
+        null ||
+      row.barber_name ===
+        undefined
         ? null
-        : String(row.barber_name),
+        : String(
+            row.barber_name,
+          ),
 
-    date:
-      toDate(row.date) as string,
+    date: toDate(
+      row.date,
+    ) as string,
 
-    start_time:
-      toTime(row.start_time),
+    start_time: toTime(
+      row.start_time,
+    ),
 
-    end_time:
-      toTime(row.end_time),
+    end_time: toTime(
+      row.end_time,
+    ),
 
     reason:
-      row.reason === null ||
-      row.reason === undefined
+      row.reason ===
+        null ||
+      row.reason ===
+        undefined
         ? ""
-        : String(row.reason),
+        : String(
+            row.reason,
+          ),
 
     type:
-      row.type === null ||
-      row.type === undefined
+      row.type ===
+        null ||
+      row.type ===
+        undefined
         ? ("BLOCK" as BlockedTime["type"])
         : (String(
             row.type,
           ) as BlockedTime["type"]),
 
-    active:
-      bool(row.active),
+    // Banco: SMALLINT
+    // Nunca comparar SMALLINT diretamente com BOOLEAN.
+    active: bool(
+      row.active,
+    ),
 
-    created_at:
-      toDate(row.created_at),
+    created_at: toDate(
+      row.created_at,
+    ),
   };
 }
-
-/* =========================================================
-   LISTAR BLOQUEIOS
-   ========================================================= */
 
 export async function getBlockedTimes(
   filters: {
@@ -225,7 +305,8 @@ export async function getBlockedTimes(
       `bt.date >= @from`,
     );
 
-    params.from = filters.from;
+    params.from =
+      filters.from;
   }
 
   if (filters.to) {
@@ -233,12 +314,15 @@ export async function getBlockedTimes(
       `bt.date <= @to`,
     );
 
-    params.to = filters.to;
+    params.to =
+      filters.to;
   }
 
   if (
-    filters.barber_id !== null &&
-    filters.barber_id !== undefined
+    filters.barber_id !==
+      null &&
+    filters.barber_id !==
+      undefined
   ) {
     conditions.push(
       `bt.barber_id = @barberId`,
@@ -250,16 +334,14 @@ export async function getBlockedTimes(
 
   /*
    * IMPORTANTE:
+   * active é SMALLINT.
    *
-   * active é SMALLINT no banco.
-   *
-   * Portanto:
-   * active = 1
+   * Portanto usamos:
+   * bt.active = 1
    *
    * e NÃO:
-   * active = true
+   * bt.active = true
    */
-
   if (filters.activeOnly) {
     conditions.push(
       `bt.active = 1`,
@@ -278,23 +360,12 @@ export async function getBlockedTimes(
       Record<string, unknown>
     >(
       `SELECT
-          bt.id,
-          bt.barber_id,
-          bt.date,
-          bt.start_time,
-          bt.end_time,
-          bt.reason,
-          bt.type,
-          bt.active,
-          bt.created_at,
-          bt.updated_at,
+          bt.*,
           b.name AS barber_name
        FROM ${ident(
          "blocked_times",
        )} bt
-       LEFT JOIN ${ident(
-         "barbers",
-       )} b
+       LEFT JOIN barbers b
          ON b.id = bt.barber_id
        ${where}
        ORDER BY
@@ -303,7 +374,9 @@ export async function getBlockedTimes(
       params,
     );
 
-  return rows.map(mapBlocked);
+  return rows.map(
+    mapBlocked,
+  );
 }
 
 /* =========================================================
@@ -323,7 +396,8 @@ export async function getBlockedForDate(
 
   return rows.filter(
     (block) =>
-      block.barber_id === null ||
+      block.barber_id ===
+        null ||
       barberIds.includes(
         block.barber_id,
       ),
@@ -342,23 +416,12 @@ export async function getBlockedById(
       Record<string, unknown>
     >(
       `SELECT
-          bt.id,
-          bt.barber_id,
-          bt.date,
-          bt.start_time,
-          bt.end_time,
-          bt.reason,
-          bt.type,
-          bt.active,
-          bt.created_at,
-          bt.updated_at,
+          bt.*,
           b.name AS barber_name
        FROM ${ident(
          "blocked_times",
        )} bt
-       LEFT JOIN ${ident(
-         "barbers",
-       )} b
+       LEFT JOIN barbers b
          ON b.id = bt.barber_id
        WHERE bt.id = @id`,
       {
@@ -372,7 +435,9 @@ export async function getBlockedById(
     );
   }
 
-  return mapBlocked(rows[0]);
+  return mapBlocked(
+    rows[0],
+  );
 }
 
 /* =========================================================
@@ -409,25 +474,24 @@ export async function createBlockedTime(
         data.reason,
 
       type:
-        data.type ||
+        data.type ??
         (
-          data.start_time === null &&
-          data.end_time === null
+          data.start_time ===
+            null &&
+          data.end_time ===
+            null
             ? "DIA_INTEIRO"
             : "BLOCK"
         ),
 
-      /*
-       * Banco = SMALLINT
-       *
-       * true  -> 1
-       * false -> 0
-       */
-
+      // Banco: SMALLINT
       active:
         data.active ? 1 : 0,
 
       created_at:
+        nowStamp(),
+
+      updated_at:
         nowStamp(),
     },
   );
@@ -463,7 +527,7 @@ export async function updateBlockedTime(
     undefined
   ) {
     fields.push(
-      "barber_id = @barberId",
+      `barber_id = @barberId`,
     );
 
     params.barberId =
@@ -475,7 +539,7 @@ export async function updateBlockedTime(
     undefined
   ) {
     fields.push(
-      "date = @date",
+      `date = @date`,
     );
 
     params.date =
@@ -487,7 +551,7 @@ export async function updateBlockedTime(
     undefined
   ) {
     fields.push(
-      "start_time = @startTime",
+      `start_time = @startTime`,
     );
 
     params.startTime =
@@ -499,7 +563,7 @@ export async function updateBlockedTime(
     undefined
   ) {
     fields.push(
-      "end_time = @endTime",
+      `end_time = @endTime`,
     );
 
     params.endTime =
@@ -511,7 +575,7 @@ export async function updateBlockedTime(
     undefined
   ) {
     fields.push(
-      "reason = @reason",
+      `reason = @reason`,
     );
 
     params.reason =
@@ -523,27 +587,22 @@ export async function updateBlockedTime(
     undefined
   ) {
     fields.push(
-      "type = @type",
+      `type = @type`,
     );
 
     params.type =
       data.type;
   }
 
-  /*
-   * active = SMALLINT
-   *
-   * Nunca enviar boolean diretamente.
-   */
-
   if (
     data.active !==
     undefined
   ) {
     fields.push(
-      "active = @active",
+      `active = @active`,
     );
 
+    // SMALLINT
     params.active =
       data.active ? 1 : 0;
   }
@@ -552,37 +611,38 @@ export async function updateBlockedTime(
     return;
   }
 
+  fields.push(
+    `updated_at = @updatedAt`,
+  );
+
+  params.updatedAt =
+    nowStamp();
+
   await db.execute(
     `UPDATE ${ident(
       "blocked_times",
     )}
-     SET ${fields.join(
-       ", ",
-     )}
-     WHERE id = @id`,
+        SET ${fields.join(
+          ", ",
+        )}
+      WHERE id = @id`,
     params,
   );
 }
 
 /* =========================================================
    CONFIGURAÇÕES
-   ========================================================= */
+   Banco:
+   id
+   key
+   value
+   updated_at
 
-/*
- * BANCO:
- *
- * settings
- *
- * id
- * key
- * value
- * updated_at
- *
- * NÃO usar:
- *
- * setting_key
- * setting_value
- */
+   NÃO usar:
+   setting_key
+   setting_value
+   created_at
+   ========================================================= */
 
 export async function getSettings(): Promise<
   Setting[]
@@ -593,20 +653,27 @@ export async function getSettings(): Promise<
       value: string | null;
     }>(
       `SELECT
-          key,
-          value
-       FROM ${ident("settings")}
-       ORDER BY key`,
+          [key],
+          [value]
+       FROM ${ident(
+         "settings",
+       )}
+       ORDER BY [key]`,
     );
 
   return rows.map(
     (row) => ({
-      key: String(row.key),
+      key: String(
+        row.key,
+      ),
 
       value:
-        row.value === null
+        row.value ===
+        null
           ? null
-          : String(row.value),
+          : String(
+              row.value,
+            ),
     }),
   );
 }
@@ -616,24 +683,33 @@ export async function getSetting(
 ): Promise<string | null> {
   const row =
     await db.first<{
-      value: string | null;
+      value:
+        | string
+        | null;
     }>(
-      `SELECT value
-       FROM ${ident("settings")}
-       WHERE key = @key`,
+      `SELECT
+          [value]
+       FROM ${ident(
+         "settings",
+       )}
+       WHERE [key] = @key`,
       {
         key,
       },
     );
 
   if (
-    row?.value === null ||
-    row?.value === undefined
+    row?.value ===
+      null ||
+    row?.value ===
+      undefined
   ) {
     return null;
   }
 
-  return String(row.value);
+  return String(
+    row.value,
+  );
 }
 
 export async function setSetting(
@@ -641,10 +717,14 @@ export async function setSetting(
   value: string,
 ): Promise<void> {
   const existing =
-    await db.first<{ id: number }>(
+    await db.first<{
+      id: number;
+    }>(
       `SELECT id
-       FROM ${ident("settings")}
-       WHERE key = @key`,
+       FROM ${ident(
+         "settings",
+       )}
+       WHERE [key] = @key`,
       {
         key,
       },
@@ -652,14 +732,18 @@ export async function setSetting(
 
   if (existing) {
     await db.execute(
-      `UPDATE ${ident("settings")}
-       SET
-         value = @value,
-         updated_at = @now
+      `UPDATE ${ident(
+        "settings",
+      )}
+       SET [value] = @value,
+           [updated_at] = @updatedAt
        WHERE id = @id`,
       {
         value,
-        now: nowStamp(),
+
+        updatedAt:
+          nowStamp(),
+
         id: Number(
           existing.id,
         ),
@@ -704,3 +788,4 @@ export async function deleteBlockedTime(
     );
   }
 }
+

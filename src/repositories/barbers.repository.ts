@@ -69,6 +69,7 @@ function mapBarber(
         : null,
   };
 }
+
 /* =========================================================
    SERVIÇOS DOS BARBEIROS
    ========================================================= */
@@ -101,9 +102,7 @@ async function listServicesOfBarbers(): Promise<
     const services =
       result.get(barberId) ?? [];
 
-    if (
-      !services.includes(serviceId)
-    ) {
+    if (!services.includes(serviceId)) {
       services.push(serviceId);
     }
 
@@ -217,7 +216,8 @@ export async function findById(
   return mapBarber(
     row,
     serviceRows.map(
-      (item) => Number(item.service_id),
+      (item) =>
+        Number(item.service_id),
     ),
   );
 }
@@ -242,11 +242,7 @@ export async function create(
       data.commission_percent,
     );
 
-  if (
-    !Number.isFinite(
-      commission,
-    )
-  ) {
+  if (!Number.isFinite(commission)) {
     throw new Error(
       "Comissão inválida.",
     );
@@ -261,9 +257,7 @@ export async function create(
     );
   }
 
-  if (
-    !data.name.trim()
-  ) {
+  if (!data.name.trim()) {
     throw new Error(
       "O nome do profissional é obrigatório.",
     );
@@ -295,10 +289,6 @@ export async function create(
         data.bio?.trim() ||
         null,
 
-      /*
-       * NOME EXATO DA COLUNA
-       * NO SQL SERVER
-       */
       commission_percent:
         commission,
 
@@ -324,8 +314,7 @@ export async function update(
     active: boolean;
   }>,
 ): Promise<void> {
-  const fields: string[] =
-    [];
+  const fields: string[] = [];
 
   const params: Record<
     string,
@@ -334,9 +323,7 @@ export async function update(
     id,
   };
 
-  if (
-    data.name !== undefined
-  ) {
+  if (data.name !== undefined) {
     fields.push(
       "name = @name",
     );
@@ -345,9 +332,7 @@ export async function update(
       data.name.trim();
   }
 
-  if (
-    data.phone !== undefined
-  ) {
+  if (data.phone !== undefined) {
     fields.push(
       "phone = @phone",
     );
@@ -357,9 +342,7 @@ export async function update(
       null;
   }
 
-  if (
-    data.email !== undefined
-  ) {
+  if (data.email !== undefined) {
     fields.push(
       "email = @email",
     );
@@ -369,9 +352,7 @@ export async function update(
       null;
   }
 
-  if (
-    data.photo !== undefined
-  ) {
+  if (data.photo !== undefined) {
     fields.push(
       "photo = @photo",
     );
@@ -394,9 +375,7 @@ export async function update(
       null;
   }
 
-  if (
-    data.bio !== undefined
-  ) {
+  if (data.bio !== undefined) {
     fields.push(
       "bio = @bio",
     );
@@ -443,7 +422,8 @@ export async function update(
   }
 
   if (
-    data.active !== undefined
+    data.active !==
+    undefined
   ) {
     fields.push(
       "active = @active",
@@ -453,9 +433,7 @@ export async function update(
       data.active ? 1 : 0;
   }
 
-  if (
-    fields.length === 0
-  ) {
+  if (!fields.length) {
     return;
   }
 
@@ -494,9 +472,6 @@ export async function setServices(
     async (
       tx: TransactionClient,
     ) => {
-      /*
-       * Remove os serviços antigos
-       */
       await tx.execute(
         `
           DELETE FROM service_barbers
@@ -507,9 +482,6 @@ export async function setServices(
         },
       );
 
-      /*
-       * Insere os novos
-       */
       for (
         const serviceId
         of uniqueIds
@@ -582,23 +554,24 @@ export async function barberOffersService(
 export async function listHours(
   barberId: number,
 ): Promise<BarberHour[]> {
-  const rows = await db.query<BarberRow>(
-    `
-      SELECT
-        id,
-        barber_id,
-        day_of_week,
-        open_time AS start_time,
-        close_time AS end_time,
-        closed AS is_closed
-      FROM barber_hours
-      WHERE barber_id = @barberId
-      ORDER BY day_of_week ASC
-    `,
-    {
-      barberId,
-    },
-  );
+  const rows =
+    await db.query<BarberRow>(
+      `
+        SELECT
+          id,
+          barber_id,
+          day_of_week,
+          start_time,
+          end_time,
+          is_closed
+        FROM barber_hours
+        WHERE barber_id = @barberId
+        ORDER BY day_of_week ASC
+      `,
+      {
+        barberId,
+      },
+    );
 
   return rows.map((row) => ({
     id:
@@ -606,18 +579,24 @@ export async function listHours(
         ? Number(row.id)
         : null,
 
-    barber_id: Number(row.barber_id),
+    barber_id:
+      Number(row.barber_id),
 
-    day_of_week: Number(row.day_of_week),
+    day_of_week:
+      Number(row.day_of_week),
 
     start_time:
       row.start_time != null
-        ? String(row.start_time).slice(0, 5)
+        ? String(
+            row.start_time,
+          ).slice(0, 5)
         : null,
 
     end_time:
       row.end_time != null
-        ? String(row.end_time).slice(0, 5)
+        ? String(
+            row.end_time,
+          ).slice(0, 5)
         : null,
 
     is_closed:
@@ -652,16 +631,26 @@ export async function listHoursForDay(
   }
 
   const placeholders = ids
-    .map((_, index) => `@barberId${index}`)
+    .map(
+      (_, index) =>
+        `@barberId${index}`,
+    )
     .join(", ");
 
-  const params: Record<string, unknown> = {
+  const params: Record<
+    string,
+    unknown
+  > = {
     dayOfWeek,
   };
 
-  ids.forEach((id, index) => {
-    params[`barberId${index}`] = id;
-  });
+  ids.forEach(
+    (id, index) => {
+      params[
+        `barberId${index}`
+      ] = id;
+    },
+  );
 
   const rows =
     await db.query<BarberRow>(
@@ -670,9 +659,9 @@ export async function listHoursForDay(
           bh.id,
           bh.barber_id,
           bh.day_of_week,
-          bh.open_time AS start_time,
-          bh.close_time AS end_time,
-          bh.closed AS is_closed
+          bh.start_time,
+          bh.end_time,
+          bh.is_closed
 
         FROM barber_hours bh
 
@@ -682,6 +671,7 @@ export async function listHoursForDay(
         WHERE
           bh.day_of_week = @dayOfWeek
           AND b.active = 1
+          AND bh.is_closed = 0
           AND bh.barber_id IN (${placeholders})
 
         ORDER BY
@@ -704,12 +694,16 @@ export async function listHoursForDay(
 
     start_time:
       row.start_time != null
-        ? String(row.start_time).slice(0, 5)
+        ? String(
+            row.start_time,
+          ).slice(0, 5)
         : null,
 
     end_time:
       row.end_time != null
-        ? String(row.end_time).slice(0, 5)
+        ? String(
+            row.end_time,
+          ).slice(0, 5)
         : null,
 
     is_closed:
@@ -718,6 +712,7 @@ export async function listHoursForDay(
       row.is_closed === "1",
   }));
 }
+
 /* =========================================================
    CRIAR / ATUALIZAR HORÁRIOS
    ========================================================= */
@@ -731,148 +726,149 @@ export async function upsertHours(
     is_closed: boolean;
   }[],
 ): Promise<void> {
-  await db.transaction(async (tx: TransactionClient) => {
-    for (const hour of hours) {
-      const day = Number(hour.day_of_week);
+  await db.transaction(
+    async (
+      tx: TransactionClient,
+    ) => {
+      for (const hour of hours) {
+        const day =
+          Number(
+            hour.day_of_week,
+          );
 
-      if (
-        !Number.isInteger(day) ||
-        day < 0 ||
-        day > 6
-      ) {
-        throw new Error(
-          "Dia da semana inválido.",
-        );
-      }
+        if (
+          !Number.isInteger(day) ||
+          day < 0 ||
+          day > 6
+        ) {
+          throw new Error(
+            "Dia da semana inválido.",
+          );
+        }
 
-      const isClosed = Boolean(
-        hour.is_closed,
-      );
+        const isClosed =
+          Boolean(
+            hour.is_closed,
+          );
 
-      let startTime =
-        hour.start_time;
+        let startTime =
+          hour.start_time;
 
-      let endTime =
-        hour.end_time;
+        let endTime =
+          hour.end_time;
 
-      /*
-       * Se estiver fechado, não precisamos
-       * armazenar horário.
-       */
-      if (isClosed) {
-        startTime = null;
-        endTime = null;
-      }
+        if (isClosed) {
+          startTime = null;
+          endTime = null;
+        }
 
-      /*
-       * Se estiver aberto, os dois horários
-       * são obrigatórios.
-       */
-      if (
-        !isClosed &&
-        (!startTime || !endTime)
-      ) {
-        throw new Error(
-          "Informe o horário inicial e final.",
-        );
-      }
+        if (
+          !isClosed &&
+          (!startTime ||
+            !endTime)
+        ) {
+          throw new Error(
+            "Informe o horário inicial e final.",
+          );
+        }
 
-      /*
-       * Verifica se o final é maior que o início.
-       */
-      if (
-        !isClosed &&
-        startTime &&
-        endTime &&
-        startTime >= endTime
-      ) {
-        throw new Error(
-          "O horário final deve ser maior que o horário inicial.",
-        );
-      }
+        if (
+          !isClosed &&
+          startTime &&
+          endTime &&
+          startTime >= endTime
+        ) {
+          throw new Error(
+            "O horário final deve ser maior que o horário inicial.",
+          );
+        }
 
-      /*
-       * Procura o registro existente.
-       */
-      const result = await tx.execute(
-        `
-          SELECT id
-          FROM barber_hours
-          WHERE
-            barber_id = @barberId
-            AND day_of_week = @dayOfWeek
-        `,
-        {
-          barberId,
-          dayOfWeek: day,
-        },
-      );
+        /*
+         * PostgreSQL:
+         * barber_hours possui:
+         * id
+         * barber_id
+         * day_of_week
+         * start_time
+         * end_time
+         * is_closed
+         */
 
-      const queryResult =
-        result as {
-          recordset?: Array<{
+        const existing =
+          await db.first<{
             id: number;
-          }>;
-        };
+          }>(
+            `
+              SELECT id
+              FROM barber_hours
+              WHERE
+                barber_id = @barberId
+                AND day_of_week = @dayOfWeek
+            `,
+            {
+              barberId,
+              dayOfWeek: day,
+            },
+          );
 
-      const existing =
-        queryResult.recordset?.[0];
-
-      /*
-       * IMPORTANTE:
-       * SQL Server usa:
-       *
-       * open_time
-       * close_time
-       * closed
-       */
-
-      if (existing) {
-        await tx.execute(
-          `
-            UPDATE barber_hours
-            SET
-              open_time = @openTime,
-              close_time = @closeTime,
-              closed = @closed
-            WHERE id = @id
-          `,
-          {
-            id: Number(existing.id),
-            openTime: startTime,
-            closeTime: endTime,
-            closed: isClosed ? 1 : 0,
-          },
-        );
-      } else {
-        await tx.execute(
-          `
-            INSERT INTO barber_hours
-            (
-              barber_id,
-              day_of_week,
-              open_time,
-              close_time,
-              closed
-            )
-            VALUES
-            (
-              @barberId,
-              @dayOfWeek,
-              @openTime,
-              @closeTime,
-              @closed
-            )
-          `,
-          {
-            barberId,
-            dayOfWeek: day,
-            openTime: startTime,
-            closeTime: endTime,
-            closed: isClosed ? 1 : 0,
-          },
-        );
+        if (existing) {
+          await tx.execute(
+            `
+              UPDATE barber_hours
+              SET
+                start_time = @startTime,
+                end_time = @endTime,
+                is_closed = @isClosed,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = @id
+            `,
+            {
+              id:
+                Number(
+                  existing.id,
+                ),
+              startTime,
+              endTime,
+              isClosed:
+                isClosed ? 1 : 0,
+            },
+          );
+        } else {
+          await tx.execute(
+            `
+              INSERT INTO barber_hours
+              (
+                barber_id,
+                day_of_week,
+                start_time,
+                end_time,
+                is_closed,
+                created_at,
+                updated_at
+              )
+              VALUES
+              (
+                @barberId,
+                @dayOfWeek,
+                @startTime,
+                @endTime,
+                @isClosed,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+              )
+            `,
+            {
+              barberId,
+              dayOfWeek: day,
+              startTime,
+              endTime,
+              isClosed:
+                isClosed ? 1 : 0,
+            },
+          );
+        }
       }
-    }
-  });
+    },
+  );
 }
+
