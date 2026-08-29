@@ -11,6 +11,10 @@ type Payload = DashboardData & { month_summary: Record<string, { total: number; 
 export default function DashboardPage() {
   const { data, loading, error } = useApi<Payload>("/api/dashboard");
 
+  console.log("DASHBOARD DATA:", data);
+  console.log("DASHBOARD LOADING:", loading);
+  console.log("DASHBOARD ERROR:", error);
+
   if (loading) return <Loading label="Carregando indicadores..." />;
   if (error) return <ErrorBox message={error} />;
   if (!data) return <Empty title="Sem dados para exibir." />;
