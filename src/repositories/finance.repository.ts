@@ -56,8 +56,6 @@ function mapTransaction(
   };
 }
 
-
-
 /* =========================================================
    LISTAR TRANSAÇÕES
    ========================================================= */
@@ -73,18 +71,14 @@ export async function listTransactions(
 ): Promise<Transaction[]> {
   const conditions: string[] = [];
 
-  const params: Record<
-    string,
-    unknown
-  > = {};
+  const params: Record<string, unknown> = {};
 
   if (filters.from) {
     conditions.push(
       "transaction_date >= @from",
     );
 
-    params.from =
-      filters.from;
+    params.from = filters.from;
   }
 
   if (filters.to) {
@@ -92,8 +86,7 @@ export async function listTransactions(
       "transaction_date <= @to",
     );
 
-    params.to =
-      filters.to;
+    params.to = filters.to;
   }
 
   if (filters.type) {
@@ -101,8 +94,7 @@ export async function listTransactions(
       "type = @type",
     );
 
-    params.type =
-      filters.type;
+    params.type = filters.type;
   }
 
   if (filters.payment_method) {
@@ -125,15 +117,11 @@ export async function listTransactions(
 
   const where =
     conditions.length
-      ? `WHERE ${conditions.join(
-          " AND ",
-        )}`
+      ? `WHERE ${conditions.join(" AND ")}`
       : "";
 
   const rows =
-    await db.query<
-      Record<string, unknown>
-    >(
+    await db.query<Record<string, unknown>>(
       `SELECT *
        FROM transactions
        ${where}
@@ -143,9 +131,7 @@ export async function listTransactions(
       params,
     );
 
-  return rows.map(
-    mapTransaction,
-  );
+  return rows.map(mapTransaction);
 }
 
 /* =========================================================
@@ -168,10 +154,15 @@ export async function createTransaction(
 ): Promise<number> {
   return executor.insert("transactions", {
     type: data.type,
+
     category: data.category,
+
     description: data.description,
+
     amount: data.amount,
-    payment_method: data.payment_method,
+
+    payment_method:
+      data.payment_method,
 
     reference_type:
       data.reference_type ?? null,
@@ -187,8 +178,6 @@ export async function createTransaction(
   });
 }
 
-
-
 /* =========================================================
    BUSCAR TRANSAÇÃO POR REFERÊNCIA
    ========================================================= */
@@ -199,15 +188,9 @@ export async function findTransactionByReference(
 ): Promise<Transaction | null> {
   let query = "";
 
-  let params: Record<
-    string,
-    unknown
-  > = {};
+  let params: Record<string, unknown> = {};
 
-  if (
-    referenceType ===
-    "APPOINTMENT"
-  ) {
+  if (referenceType === "APPOINTMENT") {
     query = `
       SELECT *
       FROM transactions
@@ -218,8 +201,7 @@ export async function findTransactionByReference(
       referenceId,
     };
   } else if (
-    referenceType ===
-    "PRODUCT_SALE"
+    referenceType === "PRODUCT_SALE"
   ) {
     query = `
       SELECT *
@@ -235,9 +217,7 @@ export async function findTransactionByReference(
   }
 
   const row =
-    await db.first<
-      Record<string, unknown>
-    >(
+    await db.first<Record<string, unknown>>(
       query,
       params,
     );
@@ -251,7 +231,7 @@ export async function findTransactionByReference(
    COMISSÕES
    =========================================================
 
-   Estrutura REAL do banco:
+   Estrutura do banco:
 
    commissions
    ├── id
@@ -265,7 +245,19 @@ export async function findTransactionByReference(
    ├── created_at
    └── updated_at
 
+   commission_payments
+   ├── id
+   ├── commission_id
+   ├── barber_id
+   ├── amount
+   ├── note
+   ├── paid_by
+   ├── paid_at
+   ├── created_at
+   └── notes
+
    IMPORTANTE:
+
    commissions NÃO possui service_id.
 
    O serviço é obtido através de:
@@ -323,34 +315,23 @@ function mapCommission(
   row: Record<string, unknown>,
 ): Commission {
   return {
-    id: Number(
-      row.id,
-    ),
+    id:
+      Number(row.id),
 
     appointment_id:
-      Number(
-        row.appointment_id,
-      ),
+      Number(row.appointment_id),
 
     barber_id:
-      Number(
-        row.barber_id,
-      ),
+      Number(row.barber_id),
 
     barber_name:
-      String(
-        row.barber_name ?? "",
-      ),
+      String(row.barber_name ?? ""),
 
     customer_name:
-      String(
-        row.customer_name ?? "",
-      ),
+      String(row.customer_name ?? ""),
 
     service_name:
-      String(
-        row.service_name ?? "",
-      ),
+      String(row.service_name ?? ""),
 
     date:
       toDate(
@@ -358,39 +339,26 @@ function mapCommission(
       ) as string,
 
     base_amount:
-      num(
-        row.base_amount,
-      ),
+      num(row.base_amount),
 
     percent:
-      num(
-        row.percent,
-      ),
+      num(row.percent),
 
     amount:
-      num(
-        row.amount,
-      ),
+      num(row.amount),
 
     status:
       String(
         row.status ?? "PENDENTE",
       ) as Commission["status"],
 
-    /*
-     * paid_at EXISTE no banco atual.
-     */
     paid_at:
       row.paid_at != null
-        ? toDateTime(
-            row.paid_at,
-          )
+        ? toDateTime(row.paid_at)
         : null,
 
     created_at:
-      toDateTime(
-        row.created_at,
-      ),
+      toDateTime(row.created_at),
   };
 }
 
@@ -408,10 +376,7 @@ export async function listCommissions(
 ): Promise<Commission[]> {
   const conditions: string[] = [];
 
-  const params: Record<
-    string,
-    unknown
-  > = {};
+  const params: Record<string, unknown> = {};
 
   if (filters.from) {
     conditions.push(
@@ -431,9 +396,7 @@ export async function listCommissions(
       filters.to;
   }
 
-  if (
-    filters.barber_id != null
-  ) {
+  if (filters.barber_id != null) {
     conditions.push(
       "cm.barber_id = @barberId",
     );
@@ -453,15 +416,11 @@ export async function listCommissions(
 
   const where =
     conditions.length
-      ? `WHERE ${conditions.join(
-          " AND ",
-        )}`
+      ? `WHERE ${conditions.join(" AND ")}`
       : "";
 
   const rows =
-    await db.query<
-      Record<string, unknown>
-    >(
+    await db.query<Record<string, unknown>>(
       `${COMMISSION_SELECT}
        ${where}
        ORDER BY
@@ -470,9 +429,7 @@ export async function listCommissions(
       params,
     );
 
-  return rows.map(
-    mapCommission,
-  );
+  return rows.map(mapCommission);
 }
 
 /* =========================================================
@@ -483,9 +440,7 @@ export async function findCommissionByAppointment(
   appointmentId: number,
 ): Promise<Commission | null> {
   const rows =
-    await db.query<
-      Record<string, unknown>
-    >(
+    await db.query<Record<string, unknown>>(
       `${COMMISSION_SELECT}
        WHERE cm.appointment_id = @appointmentId`,
       {
@@ -506,9 +461,7 @@ export async function findCommissionById(
   id: number,
 ): Promise<Commission> {
   const rows =
-    await db.query<
-      Record<string, unknown>
-    >(
+    await db.query<Record<string, unknown>>(
       `${COMMISSION_SELECT}
        WHERE cm.id = @id`,
       {
@@ -522,9 +475,7 @@ export async function findCommissionById(
     );
   }
 
-  return mapCommission(
-    rows[0],
-  );
+  return mapCommission(rows[0]);
 }
 
 /* =========================================================
@@ -534,15 +485,6 @@ export async function findCommissionById(
    NÃO enviar service_id.
 
    O serviço pertence ao appointment.
-
-   Antes estava:
-
-   service_id: data.service_id
-
-   Isso causava:
-
-   column "service_id" of relation "commissions"
-   does not exist
    ========================================================= */
 
 export async function createCommission(
@@ -576,10 +518,23 @@ export async function createCommission(
   });
 }
 
-
-
 /* =========================================================
    PAGAR COMISSÃO
+   =========================================================
+
+   IMPORTANTE:
+
+   commission_payments possui commission_id como
+   NOT NULL.
+
+   Portanto o pagamento precisa informar:
+
+   commission_id
+   barber_id
+   amount
+   notes
+   paid_by
+   paid_at
    ========================================================= */
 
 export async function payCommission(
@@ -592,9 +547,16 @@ export async function payCommission(
     paidBy: number | null;
   },
 ): Promise<void> {
+  /* -------------------------------------------------------
+     1. REGISTRAR PAGAMENTO
+     ------------------------------------------------------- */
+
   await executor.insert(
     "commission_payments",
     {
+      commission_id:
+        data.commissionId,
+
       barber_id:
         data.barberId,
 
@@ -606,8 +568,15 @@ export async function payCommission(
 
       paid_by:
         data.paidBy,
+
+      paid_at:
+        new Date(),
     },
   );
+
+  /* -------------------------------------------------------
+     2. MARCAR COMISSÃO COMO PAGA
+     ------------------------------------------------------- */
 
   await executor.execute(
     `UPDATE commissions
@@ -617,7 +586,8 @@ export async function payCommission(
           updated_at = @updatedAt
       WHERE id = @commissionId`,
     {
-      status: "PAGO",
+      status:
+        "PAGO",
 
       paidAt:
         new Date(),
@@ -644,10 +614,7 @@ export async function commissionSummary(
 ) {
   const conditions: string[] = [];
 
-  const params: Record<
-    string,
-    unknown
-  > = {};
+  const params: Record<string, unknown> = {};
 
   if (filters.from) {
     conditions.push(
@@ -667,9 +634,7 @@ export async function commissionSummary(
       filters.to;
   }
 
-  if (
-    filters.barber_id != null
-  ) {
+  if (filters.barber_id != null) {
     conditions.push(
       "cm.barber_id = @barberId",
     );
@@ -680,15 +645,11 @@ export async function commissionSummary(
 
   const where =
     conditions.length
-      ? `WHERE ${conditions.join(
-          " AND ",
-        )}`
+      ? `WHERE ${conditions.join(" AND ")}`
       : "";
 
   const rows =
-    await db.query<
-      Record<string, unknown>
-    >(
+    await db.query<Record<string, unknown>>(
       `
         SELECT
           cm.status,
