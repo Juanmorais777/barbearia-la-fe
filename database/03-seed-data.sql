@@ -136,24 +136,21 @@ IF NOT EXISTS (SELECT 1 FROM dbo.products WHERE name = N'Óleo para Barba AlphaL
     VALUES (N'Óleo para Barba AlphaLook', N'Óleo nutritivo que amacia e controla o volume da barba.', 42.00, 6, 2, N'Barba');
 GO
 
-/* ------------------------- CONFIGURACOES --------------------------- */
-IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE [key] = N'business_name')
-    INSERT INTO dbo.settings ([key], [value]) VALUES (N'business_name', N'Barbearia La Fé');
-IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE [key] = N'business_phone')
-    INSERT INTO dbo.settings ([key], [value]) VALUES (N'business_phone', N'(82) 98188-3520');
-IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE [key] = N'business_whatsapp')
-    INSERT INTO dbo.settings ([key], [value]) VALUES (N'business_whatsapp', N'5582981883520');
-IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE [key] = N'business_address')
-    INSERT INTO dbo.settings ([key], [value]) VALUES (N'business_address', N'Rua Soldado Eduardo dos Santos, 1201B - Jatiúca, Maceió/AL - CEP 57035-735');
-IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE [key] = N'business_instagram')
-    INSERT INTO dbo.settings ([key], [value]) VALUES (N'business_instagram', N'barbearia_la_fe');
-IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE [key] = N'slot_step_minutes')
-    INSERT INTO dbo.settings ([key], [value]) VALUES (N'slot_step_minutes', N'30');
-IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE [key] = N'booking_window_days')
-    INSERT INTO dbo.settings ([key], [value]) VALUES (N'booking_window_days', N'60');
-IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE [key] = N'business_rating')
-    INSERT INTO dbo.settings ([key], [value]) VALUES (N'business_rating', N'5.0');
-GO
+/* ------------------------- CONFIGURAÇÕES --------------------------- */
 
+INSERT INTO settings ("key", "value")
+VALUES
+  ('business_name', 'Barbearia La Fé'),
+  ('business_phone', '(82) 98188-3520'),
+  ('business_whatsapp', '5582981883520'),
+  ('business_address', 'Rua Soldado Eduardo dos Santos, 1201B - Jatiúca, Maceió/AL - CEP 57035-735'),
+  ('business_instagram', 'barbearia_la_fe'),
+  ('slot_step_minutes', '30'),
+  ('booking_window_days', '60'),
+  ('business_rating', '5.0')
+ON CONFLICT ("key")
+DO UPDATE SET
+  "value" = EXCLUDED."value",
+  updated_at = CURRENT_TIMESTAMP;
 PRINT 'Seed da Barbearia La Fé executado com sucesso.';
 GO

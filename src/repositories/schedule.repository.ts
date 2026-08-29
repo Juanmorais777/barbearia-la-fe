@@ -644,124 +644,85 @@ export async function updateBlockedTime(
    created_at
    ========================================================= */
 
-export async function getSettings(): Promise<
-  Setting[]
-> {
-  const rows =
-    await db.query<{
-      key: string;
-      value: string | null;
-    }>(
-      `SELECT
-          [key],
-          [value]
-       FROM ${ident(
-         "settings",
-       )}
-       ORDER BY [key]`,
-    );
-
-  return rows.map(
-    (row) => ({
-      key: String(
-        row.key,
-      ),
-
-      value:
-        row.value ===
-        null
-          ? null
-          : String(
-              row.value,
-            ),
-    }),
+export async function getSettings(): Promise<Setting[]> {
+  const rows = await db.query<{
+    key: string;
+    value: string | null;
+  }>(
+    `SELECT
+        key,
+        value
+     FROM ${ident("settings")}
+     ORDER BY key`,
   );
+
+  return rows.map((row) => ({
+    key: String(row.key),
+    value:
+      row.value === null
+        ? null
+        : String(row.value),
+  }));
 }
 
 export async function getSetting(
   key: string,
 ): Promise<string | null> {
-  const row =
-    await db.first<{
-      value:
-        | string
-        | null;
-    }>(
-      `SELECT
-          [value]
-       FROM ${ident(
-         "settings",
-       )}
-       WHERE [key] = @key`,
-      {
-        key,
-      },
-    );
+  const row = await db.first<{
+    value: string | null;
+  }>(
+    `SELECT
+        value
+     FROM ${ident("settings")}
+     WHERE key = @key`,
+    {
+      key,
+    },
+  );
 
-  if (
-    row?.value ===
-      null ||
-    row?.value ===
-      undefined
-  ) {
+  if (row?.value === null || row?.value === undefined) {
     return null;
   }
 
-  return String(
-    row.value,
-  );
+  return String(row.value);
 }
 
 export async function setSetting(
   key: string,
   value: string,
 ): Promise<void> {
-  const existing =
-    await db.first<{
-      id: number;
-    }>(
-      `SELECT id
-       FROM ${ident(
-         "settings",
-       )}
-       WHERE [key] = @key`,
-      {
-        key,
-      },
-    );
+  const existing = await db.first<{
+    id: number;
+  }>(
+    `SELECT id
+     FROM ${ident("settings")}
+     WHERE key = @key`,
+    {
+      key,
+    },
+  );
 
   if (existing) {
     await db.execute(
-      `UPDATE ${ident(
-        "settings",
-      )}
-       SET [value] = @value,
-           [updated_at] = @updatedAt
+      `UPDATE ${ident("settings")}
+       SET value = @value,
+           updated_at = @updatedAt
        WHERE id = @id`,
       {
         value,
-
-        updatedAt:
-          nowStamp(),
-
-        id: Number(
-          existing.id,
-        ),
+        updatedAt: nowStamp(),
+        id: Number(existing.id),
       },
     );
 
     return;
   }
 
-  await db.insert(
-    "settings",
-    {
-      key,
-      value,
-      updated_at:
-        nowStamp(),
-    },
-  );
+  await db.insert("settings", {
+    key,
+    value,
+    updated_at: nowStamp(),
+  });
 }
 
 /* =========================================================

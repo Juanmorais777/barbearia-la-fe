@@ -6,10 +6,25 @@ import type { Barber, BarberHour } from "@/types";
    ========================================================= */
 
 type TransactionClient = {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: Record<string, unknown>,
+  ): Promise<T[]>;
+
+  first<T = Record<string, unknown>>(
+    sql: string,
+    params?: Record<string, unknown>,
+  ): Promise<T | null>;
+
   execute(
     sql: string,
     params?: Record<string, unknown>,
   ): Promise<unknown>;
+
+  insert(
+    table: string,
+    data: Record<string, unknown>,
+  ): Promise<number>;
 };
 
 type BarberRow = Record<string, unknown>;
@@ -56,10 +71,15 @@ function mapBarber(
       row.commission_percent ?? 0,
     ),
 
+    /*
+     * Banco:
+     * active SMALLINT
+     *
+     * 1 = ativo
+     * 0 = inativo
+     */
     active:
-      row.active === true ||
-      row.active === 1 ||
-      row.active === "1",
+      Number(row.active ?? 0) === 1,
 
     service_ids: serviceIds,
 
@@ -86,6 +106,7 @@ async function listServicesOfBarbers(): Promise<
         barber_id,
         service_id
       FROM service_barbers
+      ORDER BY barber_id ASC, service_id ASC
     `,
   );
 
@@ -122,6 +143,10 @@ async function listServicesOfBarbers(): Promise<
 export async function list(
   activeOnly = false,
 ): Promise<Barber[]> {
+  const where = activeOnly
+    ? "WHERE active = 1"
+    : "";
+
   const rows =
     await db.query<BarberRow>(
       `
@@ -132,17 +157,13 @@ export async function list(
           email,
           photo,
           specialty,
+          bio,
           commission_percent,
           active,
           created_at,
-          updated_at,
-          bio
+          updated_at
         FROM barbers
-        ${
-          activeOnly
-            ? "WHERE active = 1"
-            : ""
-        }
+        ${where}
         ORDER BY
           name ASC,
           id ASC
@@ -179,11 +200,11 @@ export async function findById(
           email,
           photo,
           specialty,
+          bio,
           commission_percent,
           active,
           created_at,
-          updated_at,
-          bio
+          updated_at
         FROM barbers
         WHERE id = @id
       `,
@@ -207,6 +228,7 @@ export async function findById(
           service_id
         FROM service_barbers
         WHERE barber_id = @id
+        ORDER BY service_id ASC
       `,
       {
         id,
@@ -237,6 +259,15 @@ export async function create(
     commission_percent: number;
   },
 ): Promise<number> {
+  const name =
+    data.name.trim();
+
+  if (!name) {
+    throw new Error(
+      "O nome do profissional é obrigatório.",
+    );
+  }
+
   const commission =
     Number(
       data.commission_percent,
@@ -257,41 +288,37 @@ export async function create(
     );
   }
 
-  if (!data.name.trim()) {
-    throw new Error(
-      "O nome do profissional é obrigatório.",
-    );
-  }
-
   return db.insert(
     "barbers",
     {
-      name:
-        data.name.trim(),
+      name,
 
       phone:
-        data.phone?.trim() ||
-        null,
+        data.phone?.trim() || null,
 
       email:
-        data.email?.trim() ||
-        null,
+        data.email?.trim() || null,
 
       photo:
-        data.photo?.trim() ||
-        null,
+        data.photo?.trim() || null,
 
       specialty:
-        data.specialty?.trim() ||
-        null,
+        data.specialty?.trim() || null,
 
       bio:
-        data.bio?.trim() ||
-        null,
+        data.bio?.trim() || null,
 
+      /*
+       * Banco:
+       * commission_percent NUMERIC
+       */
       commission_percent:
         commission,
 
+      /*
+       * Banco:
+       * active SMALLINT
+       */
       active: 1,
     },
   );
@@ -324,12 +351,20 @@ export async function update(
   };
 
   if (data.name !== undefined) {
+    const name =
+      data.name.trim();
+
+    if (!name) {
+      throw new Error(
+        "O nome do profissional é obrigatório.",
+      );
+    }
+
     fields.push(
       "name = @name",
     );
 
-    params.name =
-      data.name.trim();
+    params.name = name;
   }
 
   if (data.phone !== undefined) {
@@ -338,8 +373,7 @@ export async function update(
     );
 
     params.phone =
-      data.phone?.trim() ||
-      null;
+      data.phone?.trim() || null;
   }
 
   if (data.email !== undefined) {
@@ -348,8 +382,7 @@ export async function update(
     );
 
     params.email =
-      data.email?.trim() ||
-      null;
+      data.email?.trim() || null;
   }
 
   if (data.photo !== undefined) {
@@ -358,21 +391,16 @@ export async function update(
     );
 
     params.photo =
-      data.photo?.trim() ||
-      null;
+      data.photo?.trim() || null;
   }
 
-  if (
-    data.specialty !==
-    undefined
-  ) {
+  if (data.specialty !== undefined) {
     fields.push(
       "specialty = @specialty",
     );
 
     params.specialty =
-      data.specialty?.trim() ||
-      null;
+      data.specialty?.trim() || null;
   }
 
   if (data.bio !== undefined) {
@@ -381,8 +409,7 @@ export async function update(
     );
 
     params.bio =
-      data.bio?.trim() ||
-      null;
+      data.bio?.trim() || null;
   }
 
   if (
@@ -397,14 +424,7 @@ export async function update(
     if (
       !Number.isFinite(
         commission,
-      )
-    ) {
-      throw new Error(
-        "Comissão inválida.",
-      );
-    }
-
-    if (
+      ) ||
       commission < 0 ||
       commission > 100
     ) {
@@ -421,14 +441,15 @@ export async function update(
       commission;
   }
 
-  if (
-    data.active !==
-    undefined
-  ) {
+  if (data.active !== undefined) {
     fields.push(
       "active = @active",
     );
 
+    /*
+     * PostgreSQL:
+     * SMALLINT
+     */
     params.active =
       data.active ? 1 : 0;
   }
@@ -472,6 +493,9 @@ export async function setServices(
     async (
       tx: TransactionClient,
     ) => {
+      /*
+       * Remove os serviços atuais.
+       */
       await tx.execute(
         `
           DELETE FROM service_barbers
@@ -482,9 +506,11 @@ export async function setServices(
         },
       );
 
+      /*
+       * Adiciona os novos.
+       */
       for (
-        const serviceId
-        of uniqueIds
+        const serviceId of uniqueIds
       ) {
         await tx.execute(
           `
@@ -510,7 +536,7 @@ export async function setServices(
 }
 
 /* =========================================================
-   VERIFICAR SE BARBEIRO FAZ SERVIÇO
+   VERIFICAR SE BARBEIRO OFERECE SERVIÇO
    ========================================================= */
 
 export async function barberOffersService(
@@ -535,6 +561,10 @@ export async function barberOffersService(
         WHERE
           sb.barber_id = @barberId
           AND sb.service_id = @serviceId
+
+          /*
+           * active é SMALLINT
+           */
           AND b.active = 1
           AND s.active = 1
       `,
@@ -548,32 +578,13 @@ export async function barberOffersService(
 }
 
 /* =========================================================
-   LISTAR HORÁRIOS DO BARBEIRO
+   MAPEAR HORÁRIO
    ========================================================= */
 
-export async function listHours(
-  barberId: number,
-): Promise<BarberHour[]> {
-  const rows =
-    await db.query<BarberRow>(
-      `
-        SELECT
-          id,
-          barber_id,
-          day_of_week,
-          start_time,
-          end_time,
-          is_closed
-        FROM barber_hours
-        WHERE barber_id = @barberId
-        ORDER BY day_of_week ASC
-      `,
-      {
-        barberId,
-      },
-    );
-
-  return rows.map((row) => ({
+function mapBarberHour(
+  row: BarberRow,
+): BarberHour {
+  return {
     id:
       row.id != null
         ? Number(row.id)
@@ -599,11 +610,52 @@ export async function listHours(
           ).slice(0, 5)
         : null,
 
+    /*
+     * Banco:
+     * is_closed SMALLINT
+     *
+     * 1 = fechado
+     * 0 = aberto
+     */
     is_closed:
-      row.is_closed === true ||
-      row.is_closed === 1 ||
-      row.is_closed === "1",
-  }));
+      Number(
+        row.is_closed ?? 0,
+      ) === 1,
+  };
+}
+
+/* =========================================================
+   LISTAR HORÁRIOS DO BARBEIRO
+   ========================================================= */
+
+export async function listHours(
+  barberId: number,
+): Promise<BarberHour[]> {
+  const rows =
+    await db.query<BarberRow>(
+      `
+        SELECT
+          id,
+          barber_id,
+          day_of_week,
+          start_time,
+          end_time,
+          is_closed,
+          created_at,
+          updated_at
+        FROM barber_hours
+        WHERE barber_id = @barberId
+        ORDER BY
+          day_of_week ASC
+      `,
+      {
+        barberId,
+      },
+    );
+
+  return rows.map(
+    mapBarberHour,
+  );
 }
 
 /* =========================================================
@@ -626,7 +678,7 @@ export async function listHoursForDay(
     ),
   ];
 
-  if (ids.length === 0) {
+  if (!ids.length) {
     return [];
   }
 
@@ -661,7 +713,9 @@ export async function listHoursForDay(
           bh.day_of_week,
           bh.start_time,
           bh.end_time,
-          bh.is_closed
+          bh.is_closed,
+          bh.created_at,
+          bh.updated_at
 
         FROM barber_hours bh
 
@@ -670,9 +724,15 @@ export async function listHoursForDay(
 
         WHERE
           bh.day_of_week = @dayOfWeek
+
+          /*
+           * active é SMALLINT
+           */
           AND b.active = 1
-          AND bh.is_closed = 0
-          AND bh.barber_id IN (${placeholders})
+
+          AND bh.barber_id IN (
+            ${placeholders}
+          )
 
         ORDER BY
           bh.barber_id ASC
@@ -680,37 +740,9 @@ export async function listHoursForDay(
       params,
     );
 
-  return rows.map((row) => ({
-    id:
-      row.id != null
-        ? Number(row.id)
-        : null,
-
-    barber_id:
-      Number(row.barber_id),
-
-    day_of_week:
-      Number(row.day_of_week),
-
-    start_time:
-      row.start_time != null
-        ? String(
-            row.start_time,
-          ).slice(0, 5)
-        : null,
-
-    end_time:
-      row.end_time != null
-        ? String(
-            row.end_time,
-          ).slice(0, 5)
-        : null,
-
-    is_closed:
-      row.is_closed === true ||
-      row.is_closed === 1 ||
-      row.is_closed === "1",
-  }));
+  return rows.map(
+    mapBarberHour,
+  );
 }
 
 /* =========================================================
@@ -757,11 +789,19 @@ export async function upsertHours(
         let endTime =
           hour.end_time;
 
+        /*
+         * Dia fechado:
+         * não grava horários.
+         */
         if (isClosed) {
           startTime = null;
           endTime = null;
         }
 
+        /*
+         * Dia aberto:
+         * horários obrigatórios.
+         */
         if (
           !isClosed &&
           (!startTime ||
@@ -772,6 +812,10 @@ export async function upsertHours(
           );
         }
 
+        /*
+         * Final precisa ser maior
+         * que o início.
+         */
         if (
           !isClosed &&
           startTime &&
@@ -784,22 +828,19 @@ export async function upsertHours(
         }
 
         /*
-         * PostgreSQL:
-         * barber_hours possui:
-         * id
-         * barber_id
-         * day_of_week
-         * start_time
-         * end_time
-         * is_closed
+         * Procura o horário existente.
+         *
+         * IMPORTANTE:
+         * Não usamos recordset.
+         * Isso é PostgreSQL.
          */
-
         const existing =
-          await db.first<{
+          await tx.first<{
             id: number;
           }>(
             `
-              SELECT id
+              SELECT
+                id
               FROM barber_hours
               WHERE
                 barber_id = @barberId
@@ -811,6 +852,9 @@ export async function upsertHours(
             },
           );
 
+        /*
+         * Atualiza.
+         */
         if (existing) {
           await tx.execute(
             `
@@ -819,7 +863,7 @@ export async function upsertHours(
                 start_time = @startTime,
                 end_time = @endTime,
                 is_closed = @isClosed,
-                updated_at = CURRENT_TIMESTAMP
+                updated_at = @updatedAt
               WHERE id = @id
             `,
             {
@@ -827,46 +871,78 @@ export async function upsertHours(
                 Number(
                   existing.id,
                 ),
+
               startTime,
+
               endTime,
+
+              /*
+               * SMALLINT
+               */
               isClosed:
-                isClosed ? 1 : 0,
+                isClosed
+                  ? 1
+                  : 0,
+
+              updatedAt:
+                new Date(),
             },
           );
-        } else {
-          await tx.execute(
-            `
-              INSERT INTO barber_hours
-              (
-                barber_id,
-                day_of_week,
-                start_time,
-                end_time,
-                is_closed,
-                created_at,
-                updated_at
-              )
-              VALUES
-              (
-                @barberId,
-                @dayOfWeek,
-                @startTime,
-                @endTime,
-                @isClosed,
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP
-              )
-            `,
-            {
-              barberId,
-              dayOfWeek: day,
-              startTime,
-              endTime,
-              isClosed:
-                isClosed ? 1 : 0,
-            },
-          );
+
+          continue;
         }
+
+        /*
+         * Cria.
+         */
+        await tx.execute(
+          `
+            INSERT INTO barber_hours
+            (
+              barber_id,
+              day_of_week,
+              start_time,
+              end_time,
+              is_closed,
+              created_at,
+              updated_at
+            )
+            VALUES
+            (
+              @barberId,
+              @dayOfWeek,
+              @startTime,
+              @endTime,
+              @isClosed,
+              @createdAt,
+              @updatedAt
+            )
+          `,
+          {
+            barberId,
+
+            dayOfWeek:
+              day,
+
+            startTime,
+
+            endTime,
+
+            /*
+             * SMALLINT
+             */
+            isClosed:
+              isClosed
+                ? 1
+                : 0,
+
+            createdAt:
+              new Date(),
+
+            updatedAt:
+              new Date(),
+          },
+        );
       }
     },
   );
